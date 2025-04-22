@@ -7,7 +7,7 @@ use crate::config::{self, get_config_path, Config};
 
 #[tauri::command]
 fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
-    let old_config = config::get_or_create_config()?;
+    let old_config = config::get_or_create_config(true)?;
 
     if old_config.autostart != config.autostart {
         if config.autostart {
@@ -23,7 +23,7 @@ fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
 
 #[tauri::command]
 fn get_config() -> Result<Config, String> {
-    config::get_or_create_config()
+    config::get_or_create_config(true)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,7 +43,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let config_autostart = config::get_or_create_config()
+            let config_autostart = config::get_or_create_config(true)
                 .and_then(|c| Ok(c.autostart))
                 .unwrap_or(false);
             let current_autostart = app.autolaunch().is_enabled().unwrap_or(false);

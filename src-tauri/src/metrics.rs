@@ -174,7 +174,7 @@ fn register_periodic(config: &Config, r: &Registry) -> Result<impl FnMut() -> ()
 
 pub fn metrics_loop() -> Result<(), String> {
     let r = Registry::new();
-    let config = get_or_create_config()?;
+    let config = get_or_create_config(false)?;
 
     register_one_time(&config, &r)?;
 
@@ -183,7 +183,7 @@ pub fn metrics_loop() -> Result<(), String> {
     let mut s = Scheduler::new();
 
     s.every(1.minute()).run(move || {
-        get_or_create_config().and_then(|c| {
+        get_or_create_config(false).and_then(|c| {
             println!("collecting and sending metrics");
             collector();
             send_metrics(&c, &r)

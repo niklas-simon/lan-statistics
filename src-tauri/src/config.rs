@@ -94,8 +94,8 @@ pub fn create_default_config() -> Result<Config, String> {
     Ok(default)
 }
 
-pub fn get_or_create_config() -> Result<Config, String> {
-    get_config(true).or_else(|e| {
+pub fn get_or_create_config(censor: bool) -> Result<Config, String> {
+    get_config(censor).or_else(|e| {
         eprintln!("error getting config: {e}");
         create_default_config()
     })
