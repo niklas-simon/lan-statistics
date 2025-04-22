@@ -1,4 +1,4 @@
-import { Blockquote, Button, Checkbox, Stack, TextInput } from "@mantine/core";
+import { Blockquote, Button, Checkbox, PasswordInput, Stack, TextInput } from "@mantine/core";
 import "./App.css";
 import { ChangeEvent, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -7,14 +7,14 @@ import { AlertCircle } from "react-feather";
 interface Config {
     id: string;
     remote: string;
-    name: string;
+    name?: string;
     autostart: boolean;
+    password?: string;
 }
 
 const defaultConfig: Config = {
     id: "",
     remote: "https://lan.pein-gera.de",
-    name: "",
     autostart: true
 }
 
@@ -64,6 +64,11 @@ function App() {
                 disabled={loading}
                 value={config.remote}
                 onChange={change("remote")}/>
+            <PasswordInput
+                label="Passwort"
+                disabled={loading}
+                value={config.password}
+                onChange={change("password")}/>
             <Checkbox
                 label="Autostart"
                 disabled={loading}

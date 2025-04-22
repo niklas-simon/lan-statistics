@@ -1,7 +1,7 @@
 use std::{collections::HashMap, error::Error, thread::sleep, time::Duration};
 
 use clokwerk::{Scheduler, TimeUnits};
-use prometheus::{core::Collector, push_metrics, CounterVec, Gauge, GaugeVec, Opts, Registry};
+use prometheus::{core::Collector, push_metrics, BasicAuthentication, CounterVec, Gauge, GaugeVec, Opts, Registry};
 use sysinfo::{Networks, ProcessesToUpdate, System, MINIMUM_CPU_UPDATE_INTERVAL};
 
 use crate::config::{get_or_create_config, Config};
@@ -42,7 +42,10 @@ fn send_metrics(config: &Config, r: &Registry) -> Result<(), String> {
         HashMap::new(),
         &config.remote,
         r.gather(),
-        None,
+        config.password.clone().map(|p| BasicAuthentication {
+            username: String::from("lan-tracker"),
+            password: p
+        }),
     ).map_err(|e| e.to_string())
 }
 
