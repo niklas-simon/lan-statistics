@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use log::warn;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -35,7 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             app.get_webview_window("main")
                 .and_then(|w| w.set_focus().ok())
-                .unwrap_or_else(|| eprintln!("no frontend window found"))
+                .unwrap_or_else(|| warn!("no frontend window found"))
         }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

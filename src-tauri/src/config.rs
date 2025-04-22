@@ -1,6 +1,7 @@
 use std::{fs::File, io::Write, path::PathBuf, sync::Mutex, fmt::Write as _};
 
 use config_file::FromConfigFile;
+use log::warn;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use uuid::Uuid;
@@ -28,10 +29,10 @@ const PASSWORD_PLACEHOLDER: &str = "(unchanged)";
 
 static CONFIG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-pub fn set_config_path(path: PathBuf) -> Result<(), String> {
+pub fn set_config_path(path: &PathBuf) -> Result<(), String> {
     let mut config_path = CONFIG_PATH.lock().map_err(|e| e.to_string())?;
 
-    *config_path = Some(path);
+    *config_path = Some(path.clone());
 
     Ok(())
 }
@@ -96,7 +97,7 @@ pub fn create_default_config() -> Result<Config, String> {
 
 pub fn get_or_create_config(censor: bool) -> Result<Config, String> {
     get_config(censor).or_else(|e| {
-        eprintln!("error getting config: {e}");
+        warn!("error getting config: {e}");
         create_default_config()
     })
 }

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, error::Error, thread::sleep, time::Duration};
 
 use clokwerk::{Scheduler, TimeUnits};
+use log::{error, info};
 use prometheus::{core::Collector, push_metrics, BasicAuthentication, CounterVec, Gauge, GaugeVec, Opts, Registry};
 use sysinfo::{Networks, ProcessesToUpdate, System, MINIMUM_CPU_UPDATE_INTERVAL};
 
@@ -184,10 +185,10 @@ pub fn metrics_loop() -> Result<(), String> {
 
     s.every(1.minute()).run(move || {
         get_or_create_config(false).and_then(|c| {
-            println!("collecting and sending metrics");
+            info!("collecting and sending metrics");
             collector();
             send_metrics(&c, &r)
-        }).unwrap_or_else(|e| eprintln!("error in metrics loop: {e}"));
+        }).unwrap_or_else(|e| error!("error in metrics loop: {e}"));
     });
 
     loop {
