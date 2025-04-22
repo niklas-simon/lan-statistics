@@ -1,0 +1,56 @@
+name: Tauri Build on Release
+
+on:
+  release:
+    types: [created]
+    tags:
+      - 'v*.*.*' # Matches semantic version tags like v1.2.3
+
+jobs:
+  build-windows:
+    name: Build Installers
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Tauri CLI
+        run: pnpm dlx @tauri-apps/cli install
+
+      - name: Build Tauri app (NSIS)
+        run: pnpm tauri build --target nsis
+
+      - name: Build Tauri app (MSI)
+        run: pnpm tauri build --target msi
+
+      - name: Upload NSIS installer to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload MSI installer to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
