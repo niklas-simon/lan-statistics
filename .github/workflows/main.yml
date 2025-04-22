@@ -29,9 +29,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Tauri CLI
-        run: pnpm dlx @tauri-apps/cli install
-
       - name: Build Tauri app (NSIS)
         run: pnpm tauri build --target nsis
 
