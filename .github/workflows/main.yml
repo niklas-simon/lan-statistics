@@ -29,24 +29,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Tauri app (NSIS)
-        run: pnpm tauri build --target nsis
-
-      - name: Build Tauri app (MSI)
-        run: pnpm tauri build --target msi
+      - name: Build Tauri app
+        run: pnpm tauri build
 
       - name: Upload NSIS installer to release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload MSI installer to release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
             src-tauri/target/release/bundle/msi/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
