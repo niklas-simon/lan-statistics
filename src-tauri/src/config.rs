@@ -1,13 +1,13 @@
-use std::{fs::File, io::Write, path::PathBuf, sync::Mutex, fmt::Write as _};
+use std::{fs::File, io::Write, fmt::Write as _};
 
-use config_file::FromConfigFile;
+use config::Config;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct Config {
+pub struct Settings {
     pub id: String,
     pub remote: String,
     pub name: Option<String>,
@@ -15,8 +15,8 @@ pub struct Config {
     pub password: Option<String>
 }
 
-pub fn default_config() -> Config {
-    Config {
+pub fn default_config() -> Settings {
+    Settings {
         id: Uuid::new_v4().to_string(),
         remote: String::from("https://lan.pein-gera.de"),
         name: None,
@@ -26,33 +26,18 @@ pub fn default_config() -> Config {
 }
 
 const PASSWORD_PLACEHOLDER: &str = "(unchanged)";
+pub const CONFIG_PATH: &str = "config.toml";
 
-static CONFIG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-
-pub fn set_config_path(path: &PathBuf) -> Result<(), String> {
-    let mut config_path = CONFIG_PATH.lock().map_err(|e| e.to_string())?;
-
-    *config_path = Some(path.clone());
-
-    Ok(())
-}
-
-pub fn get_config_path() -> Result<PathBuf, String> {
-    let config_path = CONFIG_PATH.lock().map_err(|e| e.to_string())?;
-    let path = match config_path.clone() {
-        Some(p) => Ok(p),
-        None => Err(String::from("config path unspecified"))
-    }?;
-
-    Ok(path)
-}
-
-pub fn get_config(censor: bool) -> Result<Config, String> {
-    Config::from_config_file(get_config_path()?)
+pub fn get_config(censor: bool) -> Result<Settings, String> {
+    Config::builder()
+        .add_source(config::File::with_name(CONFIG_PATH))
+        .build()
+        .map_err(|e| e.to_string())?
+        .try_deserialize::<Settings>()
         .map(|mut c| {
             if censor {
                 c.password = c.password
-                    .and_then(|_| Some(String::from(PASSWORD_PLACEHOLDER)));
+                    .map(|_| String::from(PASSWORD_PLACEHOLDER));
                 c
             } else {
                 c
@@ -61,9 +46,7 @@ pub fn get_config(censor: bool) -> Result<Config, String> {
         .map_err(|e| e.to_string())
 }
 
-pub fn set_config(config: &Config) -> Result<(), String> {
-    let path = get_config_path()?;
-
+pub fn set_config(config: &Settings) -> Result<(), String> {
     let password = config.password.clone().map(|p|
         if p == PASSWORD_PLACEHOLDER {
             Ok::<Option<String>, String>(get_config(false).ok()
@@ -79,7 +62,7 @@ pub fn set_config(config: &Config) -> Result<(), String> {
     let mut new_config = config.clone();
     new_config.password = password;
 
-    let mut file = File::create(&path).map_err(|e| e.to_string())?;
+    let mut file = File::create(CONFIG_PATH).map_err(|e| e.to_string())?;
     let content = toml::to_string_pretty(&new_config).map_err(|e| e.to_string())?;
 
     file.write(content.as_bytes()).map_err(|e| e.to_string())?;
@@ -87,15 +70,15 @@ pub fn set_config(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
-pub fn create_default_config() -> Result<Config, String> {
-    let default: Config = default_config();
+pub fn create_default_config() -> Result<Settings, String> {
+    let default: Settings = default_config();
 
     set_config(&default)?;
 
     Ok(default)
 }
 
-pub fn get_or_create_config(censor: bool) -> Result<Config, String> {
+pub fn get_or_create_config(censor: bool) -> Result<Settings, String> {
     get_config(censor).or_else(|e| {
         warn!("error getting config: {e}");
         create_default_config()

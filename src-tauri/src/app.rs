@@ -1,13 +1,11 @@
-use std::path::PathBuf;
-
 use log::warn;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::config::{self, get_config_path, Config};
+use crate::config::{self, Settings};
 
 #[tauri::command]
-fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
+fn set_config(app_handle: AppHandle, config: Settings) -> Result<(), String> {
     let old_config = config::get_or_create_config(true)?;
 
     if old_config.autostart != config.autostart {
@@ -23,15 +21,12 @@ fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_config() -> Result<Config, String> {
+fn get_config() -> Result<Settings, String> {
     config::get_or_create_config(true)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let static_path = Box::<PathBuf>::from(get_config_path().unwrap_or(PathBuf::from("config.toml")));
-    let config_arg = Box::leak::<'static>(static_path).to_str().unwrap_or("config.toml");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             app.get_webview_window("main")
@@ -40,12 +35,12 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["-s", "-c", config_arg]),
+            Some(vec!["-s"]),
         ))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let config_autostart = config::get_or_create_config(true)
-                .and_then(|c| Ok(c.autostart))
+                .map(|c| c.autostart)
                 .unwrap_or(false);
             let current_autostart = app.autolaunch().is_enabled().unwrap_or(false);
             if current_autostart != config_autostart {

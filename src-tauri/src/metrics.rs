@@ -5,9 +5,9 @@ use log::{error, info};
 use prometheus::{core::Collector, push_metrics, BasicAuthentication, CounterVec, Gauge, GaugeVec, Opts, Registry};
 use sysinfo::{Networks, ProcessesToUpdate, System, MINIMUM_CPU_UPDATE_INTERVAL};
 
-use crate::config::{get_or_create_config, Config};
+use crate::config::{get_or_create_config, Settings};
 
-fn new_opts(config: &Config, name: &'static str, help: &'static str) -> Opts {
+fn new_opts(config: &Settings, name: &'static str, help: &'static str) -> Opts {
     Opts::new(name, help)
         .const_label("id", &config.id)
         .const_label("username", config.name.clone().unwrap_or(String::from("")))
@@ -22,7 +22,7 @@ fn new_metric<T: Collector + Clone + 'static, U: Error>(r: &Registry, metric: Re
 }
 
 fn new_gauge_labeled(
-    config: &Config,
+    config: &Settings,
     r: &Registry,
     name: &'static str,
     help: &'static str,
@@ -33,11 +33,11 @@ fn new_gauge_labeled(
     Ok(gauge)
 }
 
-fn new_gauge(config: &Config, r: &Registry, name: &'static str, help: &'static str) -> Result<Gauge, String> {
+fn new_gauge(config: &Settings, r: &Registry, name: &'static str, help: &'static str) -> Result<Gauge, String> {
     new_gauge_labeled(config, r, name, help, |o| o)
 }
 
-fn send_metrics(config: &Config, r: &Registry) -> Result<(), String> {
+fn send_metrics(config: &Settings, r: &Registry) -> Result<(), String> {
     push_metrics(
         "lan-tracker",
         HashMap::new(),
@@ -50,7 +50,7 @@ fn send_metrics(config: &Config, r: &Registry) -> Result<(), String> {
     ).map_err(|e| e.to_string())
 }
 
-fn register_one_time(config: &Config, r: &Registry) -> Result<(), String> {
+fn register_one_time(config: &Settings, r: &Registry) -> Result<(), String> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -85,8 +85,8 @@ fn register_one_time(config: &Config, r: &Registry) -> Result<(), String> {
         },
     )?;
 
-    let cpu_core_count = new_gauge(config, &r, "cpu_core_count", "displays cpu core count")?;
-    let max_memory_bytes = new_gauge(config, &r, "max_memory_bytes", "displays memory capacity")?;
+    let cpu_core_count = new_gauge(config, r, "cpu_core_count", "displays cpu core count")?;
+    let max_memory_bytes = new_gauge(config, r, "max_memory_bytes", "displays memory capacity")?;
 
     system_info.set(1.0);
     cpu_core_count.set(sys.cpus().len() as f64);
@@ -95,12 +95,12 @@ fn register_one_time(config: &Config, r: &Registry) -> Result<(), String> {
     Ok(())
 }
 
-fn register_periodic(config: &Config, r: &Registry) -> Result<impl FnMut() -> (), String> {
+fn register_periodic(config: &Settings, r: &Registry) -> Result<impl FnMut(), String> {
     let mut networks = Networks::new();
     let mut sys = System::new();
 
     let network_info = new_metric(
-        &r,
+        r,
         GaugeVec::new(
             new_opts(
                 config, 
@@ -111,8 +111,8 @@ fn register_periodic(config: &Config, r: &Registry) -> Result<impl FnMut() -> ()
         ),
     )?;
 
-    let cpu_usage = new_gauge(config, &r, "cpu_usage_percent", "displays cpu usage")?;
-    let memory_usage = new_gauge(config, &r, "memory_usage_bytes", "displays memory usage")?;
+    let cpu_usage = new_gauge(config, r, "cpu_usage_percent", "displays cpu usage")?;
+    let memory_usage = new_gauge(config, r, "memory_usage_bytes", "displays memory usage")?;
 
     let running_processes = new_metric(
         r,
