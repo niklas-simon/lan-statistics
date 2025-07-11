@@ -1,8 +1,11 @@
-use log::warn;
+use std::sync::{Arc, LazyLock, Mutex};
+
+use log::{error, warn};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
-
 use crate::config::{self, Settings};
+
+pub static APP_HANDLE: LazyLock<Arc<Mutex<Option<AppHandle>>>> = LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 #[tauri::command]
 fn set_config(app_handle: AppHandle, config: Settings) -> Result<(), String> {
@@ -35,9 +38,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["-s"]),
+            None,
         ))
-        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let config_autostart = config::get_or_create_config(true)
                 .map(|c| c.autostart)
@@ -51,12 +53,16 @@ pub fn run() {
                 }
             }
 
+            let Ok(mut app_handle) = APP_HANDLE.lock() else {
+                error!("app: Error getting lock on AppHandle");
+                return Ok(())
+            };
+
+            *app_handle = Some(app.handle().clone());
+
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            set_config,
-            get_config
-        ])
+        .invoke_handler(tauri::generate_handler![get_config, set_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
