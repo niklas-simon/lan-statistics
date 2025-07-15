@@ -1,11 +1,13 @@
-use std::{collections::HashSet, fs::File, io::BufReader, sync::LazyLock};
+use std::{collections::HashSet, fs::File, io::BufReader, sync::{LazyLock, Mutex}};
 
+use chrono::{DateTime, Local, TimeDelta};
+use common::game::Game;
 use log::{info, warn};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-use tauri::{AppHandle, Emitter};
+use tauri::{Emitter};
 
-use crate::app::APP_HANDLE;
+use crate::{api::{get_now_playing, put_now_playing}, app::APP_HANDLE};
 
 #[derive(Serialize, Clone)]
 struct Process {
@@ -15,16 +17,10 @@ struct Process {
     cwd: Option<String>
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, Hash)]
-struct Game {
-    name: String,
-    label: String
-}
-
-impl PartialEq for Game {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
+pub struct ProcessContext {
+    pub last_games: HashSet<&'static Game>,
+    pub last_put: DateTime<Local>,
+    pub last_get: DateTime<Local>
 }
 
 static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open("games.json")
@@ -33,6 +29,12 @@ static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open(
         .map_err(|e| e.to_string())
     )
 );
+
+static CTX: LazyLock<Mutex<ProcessContext>> = LazyLock::new(|| Mutex::new(ProcessContext {
+    last_put: Local::now() - TimeDelta::days(300),
+    last_get: Local::now() - TimeDelta::days(300),
+    last_games: HashSet::new()
+}));
 
 fn get_processes() -> Vec<Process> {
     let mut system = System::new();
@@ -65,9 +67,56 @@ fn get_processes() -> Vec<Process> {
         .collect()
 }
 
-fn update_now_playing(processes: &Vec<Process>, app_handle: &AppHandle) {
+fn send_event<T: Serialize>(event: &str, obj: &T) -> Result<(), String> {
+    let Ok(guard) = APP_HANDLE.lock() else {
+        return Err(String::from("send_event: Could not get lock on AppHandle"));
+    };
+
+    let Some(ref app_handle) = *guard else {
+        return Err(String::from("send_event: Could not get AppHandle"));
+    };
+
+    app_handle.emit(event, obj).map_err(|e| e.to_string())
+}
+
+fn is_update(open_games: &HashSet<&Game>) -> bool {
+    let Ok(ctx_lock) = CTX.lock() else {
+        warn!("poll: could not get lock for CTX");
+        return true;
+    };
+
+    if ctx_lock.last_games.len() == open_games.len() 
+        && open_games.iter().all(|g| ctx_lock.last_games.contains(g))
+        && ctx_lock.last_put + TimeDelta::seconds(30) > Local::now() {
+        return false;
+    }
+
+    true
+}
+
+fn update_ctx(open_games: HashSet<&'static Game>) {
+    let Ok(mut ctx_lock) = CTX.lock() else {
+        warn!("poll: could not get lock for CTX");
+        return;
+    };
+
+    ctx_lock.last_put = Local::now();
+    ctx_lock.last_games = open_games;
+
+}
+
+pub async fn poll() {
+    info!("poll: started");
+    let processes = get_processes();
+
+    if let Err(error) = send_event("processes", &processes) {
+        warn!("poll: Error occured while emitting event: {}", error.to_string())
+    } else {
+        info!("poll: found and sent info about {} processes", processes.len())
+    }
+
     let Ok(ref whitelist) = *GAMES else {
-        warn!("update_now_playing: could not get whitelist: {}", (*GAMES).as_ref().err().unwrap_or(&String::from("unknown error")));
+        warn!("poll: could not get whitelist: {}", (*GAMES).as_ref().err().unwrap_or(&String::from("unknown error")));
         return;
     };
 
@@ -75,31 +124,29 @@ fn update_now_playing(processes: &Vec<Process>, app_handle: &AppHandle) {
         .filter_map(|p| whitelist.iter().find(|g| g.name == p.name))
         .collect();
 
-    if let Err(error) = app_handle.emit("now_playing", &open_games) {
-        warn!("update_now_playing: Error occured while emitting event: {}", error.to_string())
-    } else {
-        info!("update_now_playing: currently playing {} games", open_games.len())
+    if !is_update(&open_games) {
+        return;
     }
+
+    if let Err(error) = send_event("now_playing", &open_games) {
+        warn!("poll: Error occured while emitting event: {}", error.to_string())
+    } else {
+        info!("poll: currently playing {} games", open_games.len())
+    }
+
+    match put_now_playing(&open_games).await {
+        Ok(()) => (),
+        Err(err) => warn!("poll: Error while put_now_playing: {}", err)
+    }
+
+    update_ctx(open_games);
 }
 
-pub fn poll() {
-    let Ok(guard) = APP_HANDLE.lock() else {
-        warn!("processes: Could not get lock on AppHandle");
+pub async fn update_others() {
+    let Ok(ctx) = CTX.lock() else {
+        warn!("poll: could not get lock for CTX");
         return;
     };
 
-    let Some(ref app_handle) = *guard else {
-        warn!("processes: Could not get AppHandle");
-        return;
-    };
-
-    let processes = get_processes();
-
-    if let Err(error) = app_handle.emit("processes", &processes) {
-        warn!("processes: Error occured while emitting event: {}", error.to_string())
-    } else {
-        info!("processes: found and sent info about {} processes", processes.len())
-    }
-
-    update_now_playing(&processes, app_handle);
+    get_now_playing(ctx.last_get).await;
 }
