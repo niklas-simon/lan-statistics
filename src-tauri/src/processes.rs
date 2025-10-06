@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs::File, io::BufReader, sync::{LazyLock, Mutex}};
+use std::{collections::HashSet, fs::File, io::BufReader, sync::LazyLock};
 
 use chrono::{DateTime, Local, TimeDelta};
 use common::game::Game;
@@ -6,8 +6,9 @@ use log::{info, warn};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::{Emitter};
+use tokio::sync::Mutex;
 
-use crate::{api::{get_now_playing, put_now_playing}, app::APP_HANDLE};
+use crate::{api::put_now_playing, app::APP_HANDLE};
 
 #[derive(Serialize, Clone)]
 struct Process {
@@ -18,9 +19,8 @@ struct Process {
 }
 
 pub struct ProcessContext {
-    pub last_games: HashSet<&'static Game>,
-    pub last_put: DateTime<Local>,
-    pub last_get: DateTime<Local>
+    pub last_games: HashSet<Game>,
+    pub last_put: DateTime<Local>
 }
 
 static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open("games.json")
@@ -32,7 +32,6 @@ static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open(
 
 static CTX: LazyLock<Mutex<ProcessContext>> = LazyLock::new(|| Mutex::new(ProcessContext {
     last_put: Local::now() - TimeDelta::days(300),
-    last_get: Local::now() - TimeDelta::days(300),
     last_games: HashSet::new()
 }));
 
@@ -49,20 +48,17 @@ fn get_processes() -> Vec<Process> {
 
     system.processes()
         .values()
-        .filter_map(|p| p.name().to_str()
-            .and_then(|name| Some(Process {
+        .filter_map(|p| p.name().to_str().map(|name| Process {
                 name: String::from(name),
                 exe: p.exe()
-                    .and_then(|e| e.to_str())
-                    .and_then(|e| Some(String::from(e))),
+                    .and_then(|e| e.to_str()).map(String::from),
                 cmd: p.cmd().iter()
                     .filter_map(|s| s.to_str())
-                    .map(|s| String::from(s))
+                    .map(String::from)
                     .collect(),
                 cwd: p.cwd()
-                    .and_then(|e| e.to_str())
-                    .and_then(|e| Some(String::from(e)))
-            }))
+                    .and_then(|e| e.to_str()).map(String::from)
+            })
         )
         .collect()
 }
@@ -79,74 +75,42 @@ fn send_event<T: Serialize>(event: &str, obj: &T) -> Result<(), String> {
     app_handle.emit(event, obj).map_err(|e| e.to_string())
 }
 
-fn is_update(open_games: &HashSet<&Game>) -> bool {
-    let Ok(ctx_lock) = CTX.lock() else {
-        warn!("poll: could not get lock for CTX");
-        return true;
-    };
-
-    if ctx_lock.last_games.len() == open_games.len() 
-        && open_games.iter().all(|g| ctx_lock.last_games.contains(g))
-        && ctx_lock.last_put + TimeDelta::seconds(30) > Local::now() {
-        return false;
-    }
-
-    true
-}
-
-fn update_ctx(open_games: HashSet<&'static Game>) {
-    let Ok(mut ctx_lock) = CTX.lock() else {
-        warn!("poll: could not get lock for CTX");
-        return;
-    };
-
-    ctx_lock.last_put = Local::now();
-    ctx_lock.last_games = open_games;
-
-}
-
 pub async fn poll() {
     info!("poll: started");
     let processes = get_processes();
-
-    if let Err(error) = send_event("processes", &processes) {
-        warn!("poll: Error occured while emitting event: {}", error.to_string())
-    } else {
-        info!("poll: found and sent info about {} processes", processes.len())
-    }
 
     let Ok(ref whitelist) = *GAMES else {
         warn!("poll: could not get whitelist: {}", (*GAMES).as_ref().err().unwrap_or(&String::from("unknown error")));
         return;
     };
 
-    let open_games: HashSet<&Game> = processes.iter()
-        .filter_map(|p| whitelist.iter().find(|g| g.name == p.name))
+    let open_games: HashSet<Game> = processes.iter()
+        .filter_map(|p| whitelist.iter().find(|g| g.name == p.name)).cloned()
         .collect();
 
-    if !is_update(&open_games) {
-        return;
-    }
-
     if let Err(error) = send_event("now_playing", &open_games) {
-        warn!("poll: Error occured while emitting event: {}", error.to_string())
+        warn!("poll: Error occured while emitting event: {error}")
     } else {
         info!("poll: currently playing {} games", open_games.len())
     }
 
-    match put_now_playing(&open_games).await {
-        Ok(()) => (),
-        Err(err) => warn!("poll: Error while put_now_playing: {}", err)
+    let mut ctx_lock = CTX.lock().await;
+    let last_put = ctx_lock.last_put;
+
+    ctx_lock.last_games = open_games.clone();
+    drop(ctx_lock);
+
+    let res = put_now_playing(open_games, last_put).await;
+
+    match res {
+        Ok(Some(others_playing)) => {
+            CTX.lock().await.last_put = Local::now();
+
+            if let Err(e) = send_event("others_playing", &others_playing) {
+                warn!("poll: Error while emitting event: {e}");
+            }
+        },
+        Ok(None) => (),
+        Err(err) => warn!("poll: Error while put_now_playing: {err}")
     }
-
-    update_ctx(open_games);
-}
-
-pub async fn update_others() {
-    let Ok(ctx) = CTX.lock() else {
-        warn!("poll: could not get lock for CTX");
-        return;
-    };
-
-    get_now_playing(ctx.last_get).await;
 }

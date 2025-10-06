@@ -1,39 +1,39 @@
 use std::collections::HashSet;
 
+use reqwest::{StatusCode, Client};
 use chrono::{DateTime, Local};
-use common::{game::Game, response::now_playing::NowPlayingResponse};
+use common::{game::Game, response::now_playing::{NowPlayingEntry, NowPlayingResponse, Player}};
 
 use crate::config::get_or_create_config;
 
-pub async fn put_now_playing(games: &HashSet<&Game>) -> Result<(), String> {
+pub async fn put_now_playing(games: HashSet<Game>, last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
     let config = get_or_create_config(false)?;
-    let client = reqwest::Client::new();
+    let client = Client::default();
+    let body = NowPlayingEntry {
+        games: games.into_iter().collect(),
+        player: Player {
+            id: config.id,
+            name: config.name.unwrap_or("unknown".to_string())
+        }
+    };
 
-    let res = client.put(config.remote + "/api/v1/now-playing/" + &config.id)
-        .json(games)
+    let res = client.put(config.remote + "/api/v1/now-playing")
+        .query(&[("last_update", last_update.format("%Y-%m-%dT%H:%M:%S").to_string())])
+        .json(&body)
         .send()
-        .await.map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| format!("failed to send request: {e}"))?;
 
     match res.status() {
-        reqwest::StatusCode::NO_CONTENT => Ok(()),
-        code => Err(code.to_string() + &String::from(": ") + &res.text().await.map_err(|e| e.to_string())?)
-    }
-}
+        StatusCode::OK => res.json::<NowPlayingResponse>().await
+            .map(Some)
+            .map_err(|e| format!("failed to send request: {e}")),
+        StatusCode::NOT_MODIFIED => Ok(None),
+        code => {
+            let body = res.text().await
+                .map_err(|e| format!("unexpected error code: {code}: {e}"))?;
 
-pub async fn get_now_playing(last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
-    let config = get_or_create_config(false)?;
-    let client = reqwest::Client::new();
-
-    let res = client.get(config.remote + "/api/v1/now-playing")
-        .query(&("last_update", last_update.format("%Y-%m-%dT%H:%M:%S").to_string()))
-        .send()
-        .await.map_err(|e| e.to_string())?;
-
-    match res.status() {
-        reqwest::StatusCode::OK => res.json::<NowPlayingResponse>().await
-            .map(|r| Some(r))
-            .map_err(|e| e.to_string()),
-        reqwest::StatusCode::NOT_MODIFIED => Ok(None),
-        code => Err(code.to_string() + &String::from(": ") + &res.text().await.map_err(|e| e.to_string())?)
+            Err(format!("{code}: {body}"))
+        }
     }
 }

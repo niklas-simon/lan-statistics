@@ -1,79 +1,82 @@
-use std::{collections::HashMap, sync::{LazyLock, Mutex}};
+use std::{collections::HashMap, sync::LazyLock};
 use chrono::{DateTime, Local, TimeDelta};
-use common::{game::Game, response::now_playing::NowPlayingResponse};
+use common::{game::Game, response::now_playing::{NowPlayingEntry, NowPlayingResponse}};
+use tokio::sync::Mutex;
 
-#[derive(Clone)]
 struct NowPlayingInfo {
     timestamp: DateTime<Local>,
-    games: Vec<Game>
+    entry: NowPlayingEntry
 }
 
 static STORE: LazyLock<Mutex<HashMap<String, NowPlayingInfo>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 pub static LAST_UPDATE: LazyLock<Mutex<DateTime<Local>>> = LazyLock::new(|| Mutex::new(Local::now()));
 
-pub fn get_list() -> Result<NowPlayingResponse, String> {
-    let mut store_lock = STORE.lock()
-        .map_err(|e| String::from("now_playing: error getting store lock: ") + &e.to_string())?;
+pub async fn get_list() -> NowPlayingResponse {
     let mut players_per_game: HashMap<String, u16> = HashMap::new();
     let mut all_games: Vec<Game> = vec![];
     let mut expired: Vec<String> = vec![];
+    let mut store_lock = STORE.lock().await;
 
-    store_lock.keys().for_each(|player| {
-        let info = store_lock.get(player).unwrap();
-
+    for (player, info) in store_lock.iter() {
         if info.timestamp < Local::now() - TimeDelta::minutes(1) {
             expired.push(player.clone());
-            return;
+            continue;
         }
 
-        info.games.iter().for_each(|game| {
+        info.entry.games.iter().for_each(|game| {
             all_games.push(game.clone());
 
             *players_per_game.entry(game.name.clone()).or_insert(0) += 1;
         });
-    });
+    }
 
-    expired.iter().for_each(|player| {
-        store_lock.remove(player);
-    });
+    for player in expired {
+        store_lock.remove(&player);
+    };
 
-    let mut party: Option<Game> = None;
+    let mut party = vec![];
     let mut most_players: u16 = 0;
 
-    players_per_game.keys().for_each(|game| {
-        let value = *players_per_game.get(game).unwrap();
+    for (game_id, value) in players_per_game.into_iter() {
+        let Some(game) = all_games.iter().find(|g| g.name == *game_id).cloned() else {
+            continue;
+        };
 
         if value > most_players {
-            party = all_games.iter().find(|g| g.name == *game).map(|g| g.clone());
+            party = vec![game];
             most_players = value;
+        } else if value == most_players {
+            party.push(game);
         }
-    });
+    };
 
-    return Ok(NowPlayingResponse {
-        players: store_lock.iter().map(|(player, info)| (player.clone(), info.games.clone())).collect(),
-        party: party
-    })
+    NowPlayingResponse {
+        players: store_lock.values().map(|v| v.entry.clone()).collect(),
+        party
+    }
 }
 
-pub fn update(player: String, games: Vec<Game>) -> Result<(), String> {
-    let mut store_lock = STORE.lock()
-        .map_err(|e| String::from("now_playing: error getting store lock: ") + &e.to_string())?;
+pub async fn update(entry: NowPlayingEntry) {
+    let mut store_lock = STORE.lock().await;
 
     let info = NowPlayingInfo {
         timestamp: Local::now(),
-        games: games
+        entry
     };
 
-    if let Some(entry) = store_lock.get_mut(&player) {
-        *entry = info;
+    let mut is_update = false;
+
+    if let Some(item) = store_lock.get_mut(&info.entry.player.id) {
+        if item.entry.player.id != info.entry.player.id || !item.entry.games.iter().eq(info.entry.games.iter()) {
+            is_update = true;
+        }
+        
+        *item = info;
     } else {
-        store_lock.insert(player, info);
+        store_lock.insert(info.entry.player.id.clone(), info);
     }
 
-    let mut update_lock = LAST_UPDATE.lock()
-        .map_err(|e| String::from("now_playing: error getting update lock: ") + &e.to_string())?;
-
-    *update_lock = Local::now();
-
-    Ok(())
+    if is_update {
+        *LAST_UPDATE.lock().await = Local::now();
+    }
 }

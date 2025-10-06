@@ -1,12 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{process::exit, sync::{Arc, Mutex}, time::Duration};
+use std::{process::exit, time::Duration};
 
-use chrono::{Local, TimeDelta};
 use clokwerk::{AsyncScheduler, TimeUnits};
-
-use crate::api::get_now_playing;
 
 mod app;
 mod config;
@@ -17,7 +14,7 @@ mod api;
 async fn main() {
     log4rs::init_file("log4rs.yml", Default::default())
         .unwrap_or_else(|e| {
-            eprintln!("error configuring logger: {}", e);
+            eprintln!("error configuring logger: {e}");
             exit(1);
         });
 
@@ -25,7 +22,6 @@ async fn main() {
 
     scheduler.every(5.seconds()).run(async || {
         processes::poll().await;
-        processes::update_others().await;
     });
 
     tokio::spawn(async move {
