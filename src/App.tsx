@@ -1,10 +1,12 @@
-import { Tabs, TabsList, TabsPanel, TabsTab } from "@mantine/core";
+import { Group, Tabs, TabsList, TabsPanel, TabsTab } from "@mantine/core";
 import "./App.css";
 import { Info, List, Settings as SettingsIcon } from "react-feather";
 import Processes from "./pages/processes/Processes";
 import Settings from "./pages/settings/Settings";
 import { useState } from "react";
 import Overview from "./pages/overview/Overview";
+import { GoogleLogin } from "@react-oauth/google";
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
     const [tab, setTab] = useState<string | null>("processes");
@@ -20,6 +22,10 @@ function App() {
             <TabsTab value="settings" leftSection={<SettingsIcon />}>
                 Settings
             </TabsTab>
+            <Group flex={1}></Group>
+            <GoogleLogin onSuccess={creds => invoke("login", {
+                token: creds.credential,
+            }).then(console.log).catch(console.error)} onError={console.error} />
         </TabsList>
         <TabsPanel value="overview">
             <Overview />

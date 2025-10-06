@@ -1,16 +1,14 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{process::exit, sync::{Arc, Mutex}, time::Duration};
-
-use chrono::{Local, TimeDelta};
+use std::{process::exit, time::Duration};
 use clokwerk::{AsyncScheduler, TimeUnits};
-
-use crate::api::get_now_playing;
+use log::error;
 
 mod app;
 mod config;
 mod processes;
+mod module_bindings;
 mod api;
 
 #[tokio::main]
@@ -21,11 +19,14 @@ async fn main() {
             exit(1);
         });
 
+    if let Err(err) = api::connect().await {
+        error!("error: could not connect to SpacetimeDB: {}", err);
+    }
+
     let mut scheduler = AsyncScheduler::new();
 
     scheduler.every(5.seconds()).run(async || {
         processes::poll().await;
-        processes::update_others().await;
     });
 
     tokio::spawn(async move {

@@ -1,39 +1,95 @@
-use std::collections::HashSet;
+use std::sync::LazyLock;
 
-use chrono::{DateTime, Local};
-use common::{game::Game, response::now_playing::NowPlayingResponse};
+use log::{error, info, warn};
+use spacetimedb_sdk::{credentials, DbContext, Error, Identity};
+use tokio::sync::Mutex;
 
-use crate::config::get_or_create_config;
+use crate::{app, config::get_config_or_default, module_bindings::{client_connected, set_games, set_userinfo, DbConnection, ErrorContext, SubscriptionEventContext}};
 
-pub async fn put_now_playing(games: &HashSet<&Game>) -> Result<(), String> {
-    let config = get_or_create_config(false)?;
-    let client = reqwest::Client::new();
+pub static CTX: LazyLock<Mutex<Option<DbConnection>>> = LazyLock::new(|| Mutex::new(None));
 
-    let res = client.put(config.remote + "/api/v1/now-playing/" + &config.id)
-        .json(games)
-        .send()
-        .await.map_err(|e| e.to_string())?;
-
-    match res.status() {
-        reqwest::StatusCode::NO_CONTENT => Ok(()),
-        code => Err(code.to_string() + &String::from(": ") + &res.text().await.map_err(|e| e.to_string())?)
+pub async fn connect() -> Result<(), String> {
+    match connect_to_db().await {
+        Ok(conn) => {
+            register_callbacks(&conn);
+            subscribe_to_tables(&conn);
+            conn.run_threaded();
+            let mut ctx_lock = CTX.lock().await;
+            *ctx_lock = Some(conn);
+            Ok(())
+        },
+        Err(err) => Err(err)
     }
 }
 
-pub async fn get_now_playing(last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
-    let config = get_or_create_config(false)?;
-    let client = reqwest::Client::new();
+pub fn reset_ctx() {
+    tokio::task::spawn(async {
+        let mut ctx_lock = CTX.lock().await;
+        *ctx_lock = None
+    });
+}
 
-    let res = client.get(config.remote + "/api/v1/now-playing")
-        .query(&("last_update", last_update.format("%Y-%m-%dT%H:%M:%S").to_string()))
-        .send()
-        .await.map_err(|e| e.to_string())?;
+/// Load credentials from a file and connect to the database.
+async fn connect_to_db() -> Result<DbConnection, String> {
+    let creds = creds_store().load()
+        .map_err(|e| e.to_string())?;
+    println!("creds: {:?}", creds);
+    let config = get_config_or_default();
+    DbConnection::builder()
+        .on_connect(on_connected)
+        .on_connect_error(on_connect_error)
+        .on_disconnect(on_disconnected)
+        .with_token(creds)
+        .with_module_name(config.remote_db)
+        .with_uri(config.remote_url)
+        .build()
+        .map_err(|e| e.to_string())
+}
 
-    match res.status() {
-        reqwest::StatusCode::OK => res.json::<NowPlayingResponse>().await
-            .map(|r| Some(r))
-            .map_err(|e| e.to_string()),
-        reqwest::StatusCode::NOT_MODIFIED => Ok(None),
-        code => Err(code.to_string() + &String::from(": ") + &res.text().await.map_err(|e| e.to_string())?)
+pub fn creds_store() -> credentials::File {
+    credentials::File::new("lan-tracker")
+}
+
+fn on_connected(_ctx: &DbConnection, _identity: Identity, token: &str) {
+    if let Err(e) = creds_store().save(token) {
+        error!("Failed to save credentials: {:?}", e);
     }
+}
+
+fn on_connect_error(_ctx: &ErrorContext, err: Error) {
+    error!("Connection error: {:?}", err);
+
+    reset_ctx();
+}
+
+fn on_disconnected(_ctx: &ErrorContext, err: Option<Error>) {
+    if let Some(err) = err {
+        error!("Disconnected: {}", err);
+    } else {
+        warn!("Disconnected.");
+    }
+
+    reset_ctx();
+}
+
+fn register_callbacks(ctx: &DbConnection) {
+    ctx.reducers.on_set_games(|ctx, _| app::send_games_update(&ctx.db));
+    ctx.reducers.on_client_connected(|ctx| app::send_games_update(&ctx.db));
+    ctx.reducers.on_set_userinfo(|ctx, _| app::send_games_update(&ctx.db));
+}
+
+fn subscribe_to_tables(ctx: &DbConnection) {
+    ctx.subscription_builder()
+        .on_applied(on_sub_applied)
+        .on_error(on_sub_error)
+        .subscribe(["SELECT * FROM user", "SELECT * FROM game"]);
+}
+
+fn on_sub_applied(ctx: &SubscriptionEventContext) {
+    app::send_games_update(&ctx.db);
+    info!("Fully connected and all subscriptions applied.");
+}
+
+fn on_sub_error(_ctx: &ErrorContext, err: Error) {
+    warn!("Subscription failed: {}", err);
 }

@@ -7,3 +7,4 @@
 /gen/schemas
 config.toml
 service.lock
+oauth2-config.json

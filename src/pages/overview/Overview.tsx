@@ -1,27 +1,30 @@
-import { Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 
-interface Game {
-    name: string,
-    label: string
-}
-
 export default function Overview() {
-    const [games, setGames] = useState<Game[]>([]);
+    const [games, setGames] = useState<Record<string, string[]>>({});
 
     useEffect(() => {
-        listen<Game[]>("now_playing", e => {
+        listen<Record<string, string[]>>("games", e => {
             console.log(e);
             setGames(e.payload);
         });
+
+        invoke<Record<string, string[]>>("get_games").then(setGames);
     }, []);
 
     return <Stack>
-        <Text>Now playing</Text>
+        <Text>Games currently played by everyone</Text>
         <Stack gap={"xs"}>
-            {games.map(g => <Text>{g.label}</Text>)}
-            {!games.length && <Text>no game currently played</Text>}
+            {Object.keys(games).map(k => <Group>
+                <Text>{k}</Text>
+                <Stack>
+                    {games[k].map(g => <Text>{g}</Text>)}
+                </Stack>
+            </Group>)}
+            {!Object.keys(games).length && <Text>no game currently played</Text>}
         </Stack>
     </Stack>
 }
