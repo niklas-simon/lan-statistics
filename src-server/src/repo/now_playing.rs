@@ -39,8 +39,10 @@ pub async fn get_list() -> NowPlayingResponse {
     all_games.into_values().collect()
 }
 
-pub async fn update(entry: NowPlayingEntry) {
+pub async fn update(mut entry: NowPlayingEntry) {
     let mut store_lock = STORE.lock().await;
+
+    entry.games.sort_by_key(|g| g.name.clone());
 
     let info = NowPlayingInfo {
         timestamp: Local::now(),

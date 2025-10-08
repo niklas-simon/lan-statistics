@@ -6,5 +6,9 @@
     {
         "name": "BlazingSails-Win64-Shipping.exe",
         "label": "Blazing Sails"
+    },
+    {
+        "name": "Darwin-Win64-Shipping.exe",
+        "label": "Darwin Project"
     }
 ]

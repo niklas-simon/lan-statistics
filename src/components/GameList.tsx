@@ -21,13 +21,13 @@ export default function GameList({games}: {games: OthersPlayingEntry[]}) {
     return <Stack flex={1}>
         <Stack flex={1} />
         <Stack gap="xs">
-            <Text>current game</Text>
+            <Text>played by most</Text>
             <GameCard primary game={sorted_games[0]} />
         </Stack>
         <Stack gap="xs" flex={3}>
             <Text>also currently played</Text>
             <Stack style={{overflow: "hidden"}}>
-                {sorted_games.slice(1).map(game => <GameCard game={game} />)}
+                {sorted_games.slice(1).map(game => <GameCard key={game.game.name} game={game} />)}
             </Stack>
         </Stack>
     </Stack>

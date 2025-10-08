@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use reqwest::{StatusCode, Client};
 use chrono::{DateTime, Local};
-use common::{game::Game, response::now_playing::{NowPlayingEntry, NowPlayingResponse, Player}};
+use common::{game::Game, response::{games::GamesResponse, now_playing::{NowPlayingEntry, NowPlayingResponse, Player}}};
 
 use crate::config::get_or_create_config;
 
@@ -36,4 +36,15 @@ pub async fn put_now_playing(games: HashSet<Game>, last_update: DateTime<Local>)
             Err(format!("{code}: {body}"))
         }
     }
+}
+
+pub async fn get_games() -> Result<GamesResponse, String> {
+    let config = get_or_create_config(false)?;
+    let client = Client::default();
+
+    client.get(config.remote + "/api/v1/games")
+        .send().await
+        .map_err(|e| format!("failed to send request: {e}"))?
+        .json::<GamesResponse>().await
+        .map_err(|e| format!("failed to parse response: {e}"))
 }

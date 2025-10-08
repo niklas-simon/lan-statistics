@@ -32,8 +32,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "log4rs.yml",
-      "games.json"
+      "log4rs.yml"
     ]
   }
 }

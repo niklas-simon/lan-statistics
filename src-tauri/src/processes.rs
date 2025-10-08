@@ -1,14 +1,14 @@
-use std::{collections::HashSet, fs::File, io::BufReader, sync::LazyLock};
+use std::{collections::HashSet, sync::LazyLock};
 
 use chrono::{DateTime, Local, TimeDelta};
-use common::{game::Game, response::now_playing::NowPlayingResponse};
+use common::{game::Game, response::{games::GamesResponse, now_playing::NowPlayingResponse}};
 use log::{info, warn};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::{Emitter};
 use tokio::sync::Mutex;
 
-use crate::{api::put_now_playing, app::APP_HANDLE};
+use crate::{api::{get_games, put_now_playing}, app::APP_HANDLE};
 
 #[derive(Serialize, Clone)]
 struct Process {
@@ -23,12 +23,7 @@ pub struct ProcessContext {
     pub last_put: DateTime<Local>
 }
 
-static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open("games.json")
-    .map_err(|e| e.to_string())
-    .and_then(|f| serde_json::from_reader(BufReader::new(f))
-        .map_err(|e| e.to_string())
-    )
-);
+static GAMES: LazyLock<Mutex<Option<GamesResponse>>> = LazyLock::new(|| Mutex::new(None));
 
 pub static CTX: LazyLock<Mutex<ProcessContext>> = LazyLock::new(|| Mutex::new(ProcessContext {
     last_put: Local::now() - TimeDelta::days(300),
@@ -79,13 +74,26 @@ pub async fn poll() {
     info!("poll: started");
     let processes = get_processes();
 
-    let Ok(ref whitelist) = *GAMES else {
-        warn!("poll: could not get whitelist: {}", (*GAMES).as_ref().err().unwrap_or(&String::from("unknown error")));
-        return;
+    let mut games_lock = GAMES.lock().await;
+    let games = match games_lock.as_ref() {
+        Some(g) => g,
+        None => {
+            match get_games().await {
+                Ok(g) => {
+                    *games_lock = Some(g);
+                    
+                    games_lock.as_ref().unwrap()
+                },
+                Err(e) => {
+                    warn!("poll: could not get whitelist: {e}");
+                    return;
+                }
+            }
+        }
     };
 
     let open_games: HashSet<Game> = processes.iter()
-        .filter_map(|p| whitelist.iter().find(|g| g.name == p.name)).cloned()
+        .filter_map(|p| games.games.iter().find(|g| g.name == p.name)).cloned()
         .collect();
 
     if let Err(error) = send_event("now_playing", &open_games) {

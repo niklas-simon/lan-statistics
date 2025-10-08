@@ -14,7 +14,13 @@ export default function Overview() {
             setOthersPlaying(e.payload);
         });
 
-        invoke<OthersPlayingEntry[]>("get_now_playing").then(res => setOthersPlaying(res));
+        invoke<OthersPlayingEntry[] | null>("get_now_playing").then(res => {
+            if (!res) {
+                return;
+            }
+
+            setOthersPlaying(res)
+        });
     }, []);
 
     return <Stack justify="center" align="center" flex={1}>
