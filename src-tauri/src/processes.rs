@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fs::File, io::BufReader, sync::LazyLock};
 
 use chrono::{DateTime, Local, TimeDelta};
-use common::game::Game;
+use common::{game::Game, response::now_playing::NowPlayingResponse};
 use log::{info, warn};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -19,7 +19,7 @@ struct Process {
 }
 
 pub struct ProcessContext {
-    pub last_games: HashSet<Game>,
+    pub last_response: Option<NowPlayingResponse>,
     pub last_put: DateTime<Local>
 }
 
@@ -30,9 +30,9 @@ static GAMES: LazyLock<Result<Vec<Game>, String>> = LazyLock::new(|| File::open(
     )
 );
 
-static CTX: LazyLock<Mutex<ProcessContext>> = LazyLock::new(|| Mutex::new(ProcessContext {
+pub static CTX: LazyLock<Mutex<ProcessContext>> = LazyLock::new(|| Mutex::new(ProcessContext {
     last_put: Local::now() - TimeDelta::days(300),
-    last_games: HashSet::new()
+    last_response: None
 }));
 
 fn get_processes() -> Vec<Process> {
@@ -94,23 +94,27 @@ pub async fn poll() {
         info!("poll: currently playing {} games", open_games.len())
     }
 
-    let mut ctx_lock = CTX.lock().await;
+    let ctx_lock = CTX.lock().await;
     let last_put = ctx_lock.last_put;
 
-    ctx_lock.last_games = open_games.clone();
     drop(ctx_lock);
 
     let res = put_now_playing(open_games, last_put).await;
 
     match res {
         Ok(Some(others_playing)) => {
-            CTX.lock().await.last_put = Local::now();
+            let mut ctx_lock = CTX.lock().await;
 
-            if let Err(e) = send_event("others_playing", &others_playing) {
+            ctx_lock.last_put = Local::now();
+            ctx_lock.last_response = Some(others_playing);
+
+            info!("poll: got new info");
+
+            if let Err(e) = send_event("others_playing", &ctx_lock.last_response) {
                 warn!("poll: Error while emitting event: {e}");
             }
         },
-        Ok(None) => (),
+        Ok(None) => info!("poll: no new info received"),
         Err(err) => warn!("poll: Error while put_now_playing: {err}")
     }
 }

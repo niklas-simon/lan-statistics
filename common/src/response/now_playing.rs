@@ -14,8 +14,10 @@ pub struct NowPlayingEntry {
     pub games: Vec<Game>
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct NowPlayingResponse {
-    pub players: Vec<NowPlayingEntry>,
-    pub party: Vec<Game>
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PartyPlayingEntry {
+    pub game: Game,
+    pub players: Vec<Player>
 }
+
+pub type NowPlayingResponse = Vec<PartyPlayingEntry>;

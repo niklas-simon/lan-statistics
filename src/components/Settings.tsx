@@ -1,7 +1,8 @@
-import { Blockquote, Button, Checkbox, PasswordInput, Stack, TextInput } from "@mantine/core";
+import { ActionIcon, Blockquote, Button, Checkbox, Modal, PasswordInput, Stack, TextInput } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { invoke } from "@tauri-apps/api/core";
 import { ChangeEvent, useEffect, useState } from "react";
-import { AlertCircle } from "react-feather";
+import { AlertCircle, Settings as SettingsIcon } from "react-feather";
 
 interface Config {
     id: string;
@@ -21,7 +22,7 @@ function getConfig() {
     return invoke<Config>("get_config");
 }
 
-export default function Settings() {
+function SettingsForm() {
     const [config, setConfig] = useState<Config>(defaultConfig);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -75,4 +76,17 @@ export default function Settings() {
                     <Button type="submit" loading={loading}>Speichern</Button>
                 </Stack>
             </form>
+}
+
+export default function Settings() {
+    const [opened, { open, close }] = useDisclosure(false);
+
+    return <>
+        <ActionIcon onClick={open} color={opened ? "blue" : "gray"} variant="subtle" size="xl">
+            <SettingsIcon />
+        </ActionIcon>
+        <Modal opened={opened} onClose={close} title="Settings">
+            <SettingsForm />
+        </Modal>
+    </>
 }

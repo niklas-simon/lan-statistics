@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::LazyLock};
 use chrono::{DateTime, Local, TimeDelta};
-use common::{game::Game, response::now_playing::{NowPlayingEntry, NowPlayingResponse}};
+use common::{response::now_playing::{NowPlayingEntry, NowPlayingResponse, PartyPlayingEntry}};
 use tokio::sync::Mutex;
 
 struct NowPlayingInfo {
@@ -12,8 +12,7 @@ static STORE: LazyLock<Mutex<HashMap<String, NowPlayingInfo>>> = LazyLock::new(|
 pub static LAST_UPDATE: LazyLock<Mutex<DateTime<Local>>> = LazyLock::new(|| Mutex::new(Local::now()));
 
 pub async fn get_list() -> NowPlayingResponse {
-    let mut players_per_game: HashMap<String, u16> = HashMap::new();
-    let mut all_games: Vec<Game> = vec![];
+    let mut all_games: HashMap<String, PartyPlayingEntry> = HashMap::new();
     let mut expired: Vec<String> = vec![];
     let mut store_lock = STORE.lock().await;
 
@@ -24,9 +23,12 @@ pub async fn get_list() -> NowPlayingResponse {
         }
 
         info.entry.games.iter().for_each(|game| {
-            all_games.push(game.clone());
+            let entry = all_games.entry(game.name.clone()).or_insert(PartyPlayingEntry {
+                game: game.clone(),
+                players: vec![]
+            });
 
-            *players_per_game.entry(game.name.clone()).or_insert(0) += 1;
+            entry.players.push(info.entry.player.clone());
         });
     }
 
@@ -34,26 +36,7 @@ pub async fn get_list() -> NowPlayingResponse {
         store_lock.remove(&player);
     };
 
-    let mut party = vec![];
-    let mut most_players: u16 = 0;
-
-    for (game_id, value) in players_per_game.into_iter() {
-        let Some(game) = all_games.iter().find(|g| g.name == *game_id).cloned() else {
-            continue;
-        };
-
-        if value > most_players {
-            party = vec![game];
-            most_players = value;
-        } else if value == most_players {
-            party.push(game);
-        }
-    };
-
-    NowPlayingResponse {
-        players: store_lock.values().map(|v| v.entry.clone()).collect(),
-        party
-    }
+    all_games.into_values().collect()
 }
 
 pub async fn update(entry: NowPlayingEntry) {
@@ -74,6 +57,8 @@ pub async fn update(entry: NowPlayingEntry) {
         *item = info;
     } else {
         store_lock.insert(info.entry.player.id.clone(), info);
+
+        is_update = true;
     }
 
     if is_update {
