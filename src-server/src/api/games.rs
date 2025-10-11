@@ -1,43 +1,33 @@
-use std::{fs::File, hash::{DefaultHasher, Hash, Hasher}, io::Read};
+use actix_files::NamedFile;
+use actix_web::{error::ErrorNotFound, get, web::Path, HttpResponse, Responder, Result, Scope};
+use common::{response::games::GamesResponse};
+use serde::Deserialize;
 
-use actix_web::{error::ErrorNotFound, get, web, HttpResponse, Responder, Result, Scope};
-use common::{game::Game, response::games::GamesResponse};
-use serde::{Deserialize};
+use crate::repo::games::{get_game, get_games};
 
 #[derive(Deserialize)]
-struct GamesParams {
-    hash: Option<u64>
+struct GameIconParameters {
+    name: String
 }
 
 #[get("/games")]
-async fn games(query: web::Query<GamesParams>) -> Result<impl Responder> {
-    let mut buf = String::new();
-
-    File::open("games.json")
-        .map_err(ErrorNotFound)?
-        .read_to_string(&mut buf)
-        .map_err(ErrorNotFound)?;
-
-    let mut hasher = DefaultHasher::new();
-
-    buf.hash(&mut hasher);
-
-    let hash = hasher.finish();
-
-    if query.hash == Some(hash) {
-        return Ok(HttpResponse::NotModified().finish());
-    }
-
-    let json = serde_json::from_str::<Vec<Game>>(&buf)
-        .map_err(ErrorNotFound)?;
-    
+async fn games() -> Result<impl Responder> {    
     Ok(HttpResponse::Ok().json(GamesResponse {
-        games: json,
-        hash
+        games: get_games().to_vec()
     }))
+}
+
+#[get("/games/{name}/icon")]
+async fn game_icon(path: Path<GameIconParameters>) -> Result<impl Responder> {
+    let Some(game) = get_game(&path.name) else {
+        return Err(ErrorNotFound("not found"));
+    };
+
+    Ok(NamedFile::open(format!("icons/{}", game.icon)))
 }
 
 pub fn get_services(scope: Scope) -> Scope {
     scope
         .service(games)
+        .service(game_icon)
 }

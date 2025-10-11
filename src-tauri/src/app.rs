@@ -1,10 +1,10 @@
 use std::sync::{Arc, LazyLock, Mutex};
 
-use common::response::now_playing::NowPlayingResponse;
+use common::{game::Game, response::now_playing::NowPlayingResponse};
 use log::{error, warn};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
-use crate::{config::{self, Settings}, processes};
+use crate::{api, config::{self, Settings}, processes};
 
 pub static APP_HANDLE: LazyLock<Arc<Mutex<Option<AppHandle>>>> = LazyLock::new(|| Arc::new(Mutex::new(None)));
 
@@ -32,6 +32,11 @@ fn get_config() -> Result<Settings, String> {
 #[tauri::command]
 async fn get_now_playing() -> Option<NowPlayingResponse> {
     processes::CTX.lock().await.last_response.clone()
+}
+
+#[tauri::command]
+async fn get_games() -> Result<Vec<Game>, String> {
+    api::get_games().await.map(|g| g.games)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -68,7 +73,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_config, set_config, get_now_playing])
+        .invoke_handler(tauri::generate_handler![get_config, set_config, get_now_playing, get_games])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

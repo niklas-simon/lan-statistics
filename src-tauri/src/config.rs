@@ -18,7 +18,7 @@ pub struct Settings {
 pub fn default_config() -> Settings {
     Settings {
         id: Uuid::new_v4().to_string(),
-        remote: String::from("https://lan.pein-gera.de"),
+        remote: String::from("https://lan.pein.dev"),
         name: None,
         autostart: true,
         password: None

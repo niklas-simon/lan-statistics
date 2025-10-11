@@ -3,6 +3,8 @@ use chrono::{DateTime, Local, TimeDelta};
 use common::{response::now_playing::{NowPlayingEntry, NowPlayingResponse, PartyPlayingEntry}};
 use tokio::sync::Mutex;
 
+use crate::repo::games::get_game;
+
 struct NowPlayingInfo {
     timestamp: DateTime<Local>,
     entry: NowPlayingEntry
@@ -22,8 +24,12 @@ pub async fn get_list() -> NowPlayingResponse {
             continue;
         }
 
-        info.entry.games.iter().for_each(|game| {
-            let entry = all_games.entry(game.name.clone()).or_insert(PartyPlayingEntry {
+        info.entry.games.iter().for_each(|name| {
+            let Some(game) = get_game(name) else {
+                return;
+            };
+
+            let entry = all_games.entry(name.clone()).or_insert(PartyPlayingEntry {
                 game: game.clone(),
                 players: vec![]
             });
@@ -42,7 +48,7 @@ pub async fn get_list() -> NowPlayingResponse {
 pub async fn update(mut entry: NowPlayingEntry) {
     let mut store_lock = STORE.lock().await;
 
-    entry.games.sort_by_key(|g| g.name.clone());
+    entry.games.sort();
 
     let info = NowPlayingInfo {
         timestamp: Local::now(),

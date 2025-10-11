@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::LazyLock};
 
 use chrono::{DateTime, Local, TimeDelta};
-use common::{game::Game, response::{games::GamesResponse, now_playing::NowPlayingResponse}};
+use common::{response::{games::GamesResponse, now_playing::NowPlayingResponse}};
 use log::{info, warn};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -92,8 +92,9 @@ pub async fn poll() {
         }
     };
 
-    let open_games: HashSet<Game> = processes.iter()
-        .filter_map(|p| games.games.iter().find(|g| g.name == p.name)).cloned()
+    let open_games: HashSet<String> = processes.into_iter()
+        .map(|p| p.name)
+        .filter(|p| games.games.iter().any(|g| &g.name == p))
         .collect();
 
     if let Err(error) = send_event("now_playing", &open_games) {

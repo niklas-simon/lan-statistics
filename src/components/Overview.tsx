@@ -1,11 +1,11 @@
 import { Stack } from "@mantine/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
-import { OthersPlayingEntry } from "../interfaces";
+import { Config, OthersPlayingEntry } from "../interfaces";
 import { invoke } from "@tauri-apps/api/core";
 import GameList from "./GameList";
 
-export default function Overview() {
+export default function Overview({config}: {config: Config}) {
     const [others_playing, setOthersPlaying] = useState<OthersPlayingEntry[]>([]);
 
     useEffect(() => {
@@ -24,6 +24,6 @@ export default function Overview() {
     }, []);
 
     return <Stack justify="center" align="center" flex={1}>
-        <GameList games={others_playing} />
+        <GameList games={others_playing} config={config} />
     </Stack>
 }

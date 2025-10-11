@@ -4,7 +4,8 @@ use std::hash::Hash;
 #[derive(Serialize, Deserialize, Clone, Eq)]
 pub struct Game {
     pub name: String,
-    pub label: String
+    pub label: String,
+    pub icon: String
 }
 
 impl PartialEq for Game {

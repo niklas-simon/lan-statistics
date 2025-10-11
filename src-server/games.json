@@ -1,14 +1,17 @@
 [
     {
         "name": "Beyond-All-Reason.exe",
-        "label": "Beyond All Reason"
+        "label": "Beyond All Reason",
+        "icon": "beyond_all_reason.png"
     },
     {
         "name": "BlazingSails-Win64-Shipping.exe",
-        "label": "Blazing Sails"
+        "label": "Blazing Sails",
+        "icon": "blazing_sails.ico"
     },
     {
         "name": "Darwin-Win64-Shipping.exe",
-        "label": "Darwin Project"
+        "label": "Darwin Project",
+        "icon": "darwin_project.ico"
     }
 ]

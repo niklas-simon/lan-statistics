@@ -2,6 +2,7 @@ use actix_web::{App, HttpServer};
 
 mod api;
 mod repo;
+mod config;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

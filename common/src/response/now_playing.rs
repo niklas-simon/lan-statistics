@@ -11,7 +11,7 @@ pub struct Player {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct NowPlayingEntry {
     pub player: Player,
-    pub games: Vec<Game>
+    pub games: Vec<String>
 }
 
 #[derive(Serialize, Deserialize, Clone)]

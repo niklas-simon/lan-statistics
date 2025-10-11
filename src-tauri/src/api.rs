@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use reqwest::{StatusCode, Client};
 use chrono::{DateTime, Local};
-use common::{game::Game, response::{games::GamesResponse, now_playing::{NowPlayingEntry, NowPlayingResponse, Player}}};
+use common::{response::{games::GamesResponse, now_playing::{NowPlayingEntry, NowPlayingResponse, Player}}};
 
 use crate::config::get_or_create_config;
 
-pub async fn put_now_playing(games: HashSet<Game>, last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
+pub async fn put_now_playing(games: HashSet<String>, last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
     let config = get_or_create_config(false)?;
     let client = Client::default();
     let body = NowPlayingEntry {
@@ -19,6 +19,7 @@ pub async fn put_now_playing(games: HashSet<Game>, last_update: DateTime<Local>)
 
     let res = client.put(config.remote + "/api/v1/now-playing")
         .query(&[("last_update", last_update.format("%Y-%m-%dT%H:%M:%S").to_string())])
+        .bearer_auth(config.password.unwrap_or("".to_string()))
         .json(&body)
         .send()
         .await

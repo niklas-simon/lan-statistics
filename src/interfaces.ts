@@ -12,3 +12,11 @@ export interface OthersPlayingEntry {
     game: Game,
     players: Player[]
 };
+
+export interface Config {
+    id: string;
+    remote: string;
+    name?: string;
+    autostart: boolean;
+    password?: string;
+}
