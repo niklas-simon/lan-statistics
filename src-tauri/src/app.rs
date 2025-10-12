@@ -1,9 +1,10 @@
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
 
 use common::{game::Game, response::now_playing::NowPlayingResponse};
-use log::{error, warn};
+use log::warn;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
+use tokio::sync::Mutex;
 use crate::{api, config::{self, Settings}, processes};
 
 pub static APP_HANDLE: LazyLock<Arc<Mutex<Option<AppHandle>>>> = LazyLock::new(|| Arc::new(Mutex::new(None)));
@@ -41,6 +42,7 @@ async fn get_games() -> Result<Vec<Game>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tauri::async_runtime::set(tokio::runtime::Handle::current());
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             app.get_webview_window("main")
@@ -64,12 +66,11 @@ pub fn run() {
                 }
             }
 
-            let Ok(mut app_handle) = APP_HANDLE.lock() else {
-                error!("app: Error getting lock on AppHandle");
-                return Ok(())
-            };
+            let handle_clone = app.handle().clone();
 
-            *app_handle = Some(app.handle().clone());
+            tauri::async_runtime::spawn(async move {
+                *APP_HANDLE.lock().await = Some(handle_clone);
+            });
 
             Ok(())
         })

@@ -13,3 +13,11 @@ pub static PASSWORD: LazyLock<String> = LazyLock::new(|| {
 
     out
 });
+
+pub static GAMES_FILE: LazyLock<String> = LazyLock::new(|| {    
+    env::var("GAMES_FILE").unwrap_or("games.json".to_string())
+});
+
+pub static ICONS_DIR: LazyLock<String> = LazyLock::new(|| {    
+    env::var("ICONS_DIR").unwrap_or("icons".to_string())
+});

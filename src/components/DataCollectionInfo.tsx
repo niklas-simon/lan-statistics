@@ -1,8 +1,8 @@
 import { useDisclosure } from "@mantine/hooks";
 import { Config, Game } from "../interfaces";
-import { Group, Loader, Modal, Text } from "@mantine/core";
+import { Button, Group, Loader, Modal, Stack, Text } from "@mantine/core";
 
-export default function DataCollectionInfo({config, games}: {config: Config, games: Game[] | null}) {
+export default function DataCollectionInfo({config, games, error, reload}: {config: Config, games: Game[] | null, error: string | null, reload: () => void}) {
     const [opened, { open, close }] = useDisclosure(false);
 
     return <>
@@ -16,7 +16,16 @@ export default function DataCollectionInfo({config, games}: {config: Config, gam
                     {games.map(g => <li key={g.name}>{g.name}</li>)}
                 </ul>
             :
-                <Group><Loader /></Group>
+                <Stack>
+                    {error ? <>
+                        <Text c="red">
+                            <pre style={{whiteSpace: "pre-wrap"}}>{error}</pre>
+                        </Text>
+                        <Button onClick={reload}>Erneut versuchen</Button>
+                    </>:
+                        <Group p="md" justify="center"><Loader /></Group>
+                    }
+                </Stack>
             }
         </Modal>
     </>

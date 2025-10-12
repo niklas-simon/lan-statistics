@@ -4,6 +4,9 @@
 use std::{process::exit, time::Duration};
 
 use clokwerk::{AsyncScheduler, TimeUnits};
+use log::error;
+
+use crate::api::send_event;
 
 mod app;
 mod config;
@@ -21,7 +24,11 @@ async fn main() {
     let mut scheduler = AsyncScheduler::new();
 
     scheduler.every(5.seconds()).run(async || {
-        processes::poll().await;
+        let res = processes::poll().await.err();
+
+        if let Err(e) = send_event("poll_error", &res).await {
+            error!("failed to send event: {e}");
+        }
     });
 
     tokio::spawn(async move {

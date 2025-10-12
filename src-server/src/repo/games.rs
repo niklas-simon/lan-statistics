@@ -2,16 +2,18 @@ use std::{fs::File, io::Read, sync::LazyLock};
 
 use common::game::Game;
 
+use crate::config::GAMES_FILE;
+
 static GAMES: LazyLock<Vec<Game>> = LazyLock::new(|| {
     let mut buf = String::new();
     
-    File::open("games.json")
-        .expect("could not find games.json")
+    File::open(GAMES_FILE.as_str())
+        .expect("could not find games list")
         .read_to_string(&mut buf)
-        .expect("could not read games.json");
+        .expect("could not read games list");
 
     serde_json::from_str::<Vec<Game>>(&buf)
-        .expect("could not parse games.json")
+        .expect("could not parse games list")
 });
 
 pub fn get_games() -> &'static Vec<Game> {

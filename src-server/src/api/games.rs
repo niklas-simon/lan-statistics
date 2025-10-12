@@ -3,7 +3,7 @@ use actix_web::{error::ErrorNotFound, get, web::Path, HttpResponse, Responder, R
 use common::{response::games::GamesResponse};
 use serde::Deserialize;
 
-use crate::repo::games::{get_game, get_games};
+use crate::{config::ICONS_DIR, repo::games::{get_game, get_games}};
 
 #[derive(Deserialize)]
 struct GameIconParameters {
@@ -23,7 +23,7 @@ async fn game_icon(path: Path<GameIconParameters>) -> Result<impl Responder> {
         return Err(ErrorNotFound("not found"));
     };
 
-    Ok(NamedFile::open(format!("icons/{}", game.icon)))
+    Ok(NamedFile::open(format!("{}/{}", ICONS_DIR.as_str(), game.icon)))
 }
 
 pub fn get_services(scope: Scope) -> Scope {
