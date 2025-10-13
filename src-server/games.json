@@ -13,5 +13,110 @@
         "name": "Darwin-Win64-Shipping.exe",
         "label": "Darwin Project",
         "icon": "darwin_project.ico"
+    },
+    {
+        "name": "Among Us.exe",
+        "label": "Among Us",
+        "icon": "among_us.ico"
+    },
+    {
+        "name": "Chivalry2-Win64-Shipping.exe",
+        "label": "Chivalry 2",
+        "icon": "chivalry.ico"
+    },
+    {
+        "name": "cs2.exe",
+        "label": "Counter Strike 2",
+        "icon": "counter_strike.ico"
+    },
+    {
+        "name": "deadlock.exe",
+        "label": "Deadlock",
+        "icon": "deadlock.ico"
+    },
+    {
+        "name": "dota2.exe",
+        "label": "Dota 2",
+        "icon": "dota.ico"
+    },
+    {
+        "name": "gmod.exe",
+        "label": "Garry's Mod",
+        "icon": "garrys_mod.ico"
+    },
+    {
+        "name": "JustActNatural.exe",
+        "label": "Just Act Natural",
+        "icon": "just_act_natural.ico"
+    },
+    {
+        "name": "left4dead2.exe",
+        "label": "Left 4 Dead 2",
+        "icon": "left4dead2.ico"
+    },
+    {
+        "name": "NS2.exe",
+        "label": "Natural Selection 2",
+        "icon": "natural_selection.ico"
+    },
+    {
+        "name": "Legion TD 2.exe",
+        "label": "Legion TD 2",
+        "icon": "legion_td.ico"
+    },
+    {
+        "name": "PummelParty.exe",
+        "label": "Pummel Party",
+        "icon": "pummel_party.ico"
+    },
+    {
+        "name": "quake3.exe",
+        "label": "Quake 3 Arena",
+        "icon": "quake3.ico"
+    },
+    {
+        "name": "Hemingway-Win64-Shipping.exe",
+        "label": "Smite 2",
+        "icon": "smite2.ico"
+    },
+    {
+        "name": "PortalWars-Win64-Shipping.exe",
+        "label": "Splitgate",
+        "icon": "splitgate.ico"
+    },
+    {
+        "name": "SC2_x64.exe",
+        "label": "StarCraft 2",
+        "icon": "starcraft.ico"
+    },
+    {
+        "name": "STRAFTAT.exe",
+        "label": "Straftat",
+        "icon": "straftat.ico"
+    },
+    {
+        "name": "Discovery-e.exe",
+        "label": "The Finals",
+        "icon": "finals.ico"
+    },
+    {
+        "name": "Brawlhalla.exe",
+        "label": "Brawlhalla",
+        "icon": "brawlhalla.ico"
+    },
+    {
+        "name": "LeagueClientUx.exe",
+        "label": "League of Legends",
+        "icon": "lol.ico"
+    },
+    {
+        "name": "VALORANT-Win64-Shipping.exe",
+        "label": "Valorant",
+        "icon": "valorant.ico"
+    },
+    {
+        "name": "RocketLeague.exe",
+        "label": "Rocket League",
+        "icon": "rocket_league.ico"
     }
 ]
