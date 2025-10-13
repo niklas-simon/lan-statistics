@@ -1,4 +1,4 @@
-import { AppShell, Button, Group, Image, Loader, Stack, Text, Title, Tooltip } from "@mantine/core";
+import { Button, Divider, Group, Image, Loader, Stack, Text, Title, Tooltip } from "@mantine/core";
 import "./App.css";
 import Settings from "./components/Settings";
 import Overview from "./components/Overview";
@@ -35,8 +35,8 @@ function App() {
         });
     }, []);
 
-    return <AppShell header={{height: 80}} footer={{height: 80}}>
-        <AppShell.Header p="md">
+    return <Stack gap={0} w="100vw" h="100vh" style={{overflow: "hidden"}}>
+        <Stack p="md">
             <Group justify="space-between" align="center">
                 <Group>
                     <Image src="icon.png" w="3em" />
@@ -49,8 +49,9 @@ function App() {
                     {config && <Settings config={config} setConfig={setConfig} />}
                 </Group>
             </Group>
-        </AppShell.Header>
-        <AppShell.Main display="flex">
+        </Stack>
+        <Divider/>
+        <Stack flex={1} mih={0}>
             {config ? 
                 <Overview config={config} />
             :
@@ -63,11 +64,16 @@ function App() {
                     }
                 </Stack>
             }
-        </AppShell.Main>
-        <AppShell.Footer p="md">
-            <Text>LAN Manager erfasst ausgewählte Prozesse und übermittelt sie an {config ? config.remote : "einen Server"}. Es findet keine Verarbeitung durch Dritte statt. {config && <DataCollectionInfo config={config} games={games} error={gamesError} reload={loadGames} />}</Text>
-        </AppShell.Footer>
-    </AppShell>
+        </Stack>
+        <Divider/>
+        <Stack p="md" style={{
+            backgroundColor: "color-mix(in srgb, var(--mantine-color-body), transparent 30%)",
+            backdropFilter: "blur(5px)"
+        }}>
+            <Text>LAN Manager erfasst ausgewählte Prozesse und übermittelt sie an {config ? config.remote : "einen Server"}.</Text>
+            <Text>Es findet keine Verarbeitung durch Dritte statt. {config && <DataCollectionInfo config={config} games={games} error={gamesError} reload={loadGames} />}</Text>
+        </Stack>
+    </Stack>
 }
 
 export default App;

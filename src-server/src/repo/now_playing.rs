@@ -15,15 +15,9 @@ pub static LAST_UPDATE: LazyLock<Mutex<DateTime<Local>>> = LazyLock::new(|| Mute
 
 pub async fn get_list() -> NowPlayingResponse {
     let mut all_games: HashMap<String, PartyPlayingEntry> = HashMap::new();
-    let mut expired: Vec<String> = vec![];
-    let mut store_lock = STORE.lock().await;
+    let store_lock = STORE.lock().await;
 
-    for (player, info) in store_lock.iter() {
-        if info.timestamp < Local::now() - TimeDelta::minutes(1) {
-            expired.push(player.clone());
-            continue;
-        }
-
+    for info in store_lock.values() {
         info.entry.games.iter().for_each(|name| {
             let Some(game) = get_game(name) else {
                 return;
@@ -37,10 +31,6 @@ pub async fn get_list() -> NowPlayingResponse {
             entry.players.push(info.entry.player.clone());
         });
     }
-
-    for player in expired {
-        store_lock.remove(&player);
-    };
 
     all_games.into_values().collect()
 }
@@ -68,6 +58,32 @@ pub async fn update(mut entry: NowPlayingEntry) {
 
         is_update = true;
     }
+
+    drop(store_lock);
+
+    if is_update {
+        *LAST_UPDATE.lock().await = Local::now();
+    }
+}
+
+pub async fn clean() {
+    let mut store_lock = STORE.lock().await;
+    let mut is_update = false;
+    let mut expired: Vec<String> = vec![];
+
+    for (player, info) in store_lock.iter() {
+        if info.timestamp < Local::now() - TimeDelta::seconds(30) {
+            expired.push(player.clone());
+            is_update = true;
+            continue;
+        }
+    }
+
+    for player in expired {
+        store_lock.remove(&player);
+    };
+
+    drop(store_lock);
 
     if is_update {
         *LAST_UPDATE.lock().await = Local::now();

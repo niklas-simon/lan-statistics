@@ -18,8 +18,8 @@ export default function GameList({games, config}: {games: OthersPlayingEntry[], 
         });
     }, [games]);
 
-    return <Stack flex={1} justify="center">
-        {sorted_games.length > 1 && <Stack flex={1} />}
+    return <Stack flex={1} justify="center" p="md">
+        {sorted_games.length > 1 && <Stack flex={2} />}
         <Stack gap="xs">
             <Text>die Mehrheit spielt</Text>
             <GameCard primary game={sorted_games[0]} config={config} />
