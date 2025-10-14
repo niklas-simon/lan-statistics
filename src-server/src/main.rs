@@ -8,6 +8,7 @@ use crate::repo::now_playing;
 mod api;
 mod repo;
 mod config;
+mod metrics;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -27,6 +28,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(api::get_scope())
+            .service(metrics::get_scope())
     })
     .bind(("0.0.0.0", 80))?
     .run()

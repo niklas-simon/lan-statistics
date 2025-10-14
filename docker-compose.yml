@@ -1,8 +1,4 @@
 services:
-  pushgateway:
-    image: prom/pushgateway
-    ports:
-      - 9091:9091
   prometheus:
     image: prom/prometheus
     ports:

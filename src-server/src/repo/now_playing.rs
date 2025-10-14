@@ -3,7 +3,7 @@ use chrono::{DateTime, Local, TimeDelta};
 use common::{response::now_playing::{NowPlayingEntry, NowPlayingResponse, PartyPlayingEntry}};
 use tokio::sync::Mutex;
 
-use crate::repo::games::get_game;
+use crate::{metrics, repo::games::get_game};
 
 struct NowPlayingInfo {
     timestamp: DateTime<Local>,
@@ -42,7 +42,7 @@ pub async fn update(mut entry: NowPlayingEntry) {
 
     let info = NowPlayingInfo {
         timestamp: Local::now(),
-        entry
+        entry: entry.clone()
     };
 
     let mut is_update = false;
@@ -64,6 +64,10 @@ pub async fn update(mut entry: NowPlayingEntry) {
     if is_update {
         *LAST_UPDATE.lock().await = Local::now();
     }
+
+    metrics::record_played_games(entry.player, entry.games.iter()
+        .filter_map(|g| get_game(g).cloned())
+        .collect()).await;
 }
 
 pub async fn clean() {
@@ -81,6 +85,7 @@ pub async fn clean() {
 
     for player in expired {
         store_lock.remove(&player);
+        metrics::record_expired_player(&player).await;
     };
 
     drop(store_lock);
