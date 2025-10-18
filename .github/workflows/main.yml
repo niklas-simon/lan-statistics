@@ -65,12 +65,7 @@ jobs:
           if (-not $files) { throw "No installers found to sign." }
 
           foreach ($f in $files) {
-            & $signtool sign `
-              /sha1 $env:CERT_THUMBPRINT `
-              /fd SHA256 `
-              /tr $timestamp `
-              /td SHA256 `
-              "`$($f.FullName)`"
+            & $signtool sign /sha1 $env:CERT_THUMBPRINT /fd SHA256 /tr $timestamp /td SHA256 $f.FullName
           }
       
       - name: Generate SHA256SUMS.txt
