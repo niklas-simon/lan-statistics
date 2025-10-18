@@ -13,6 +13,11 @@ export interface OthersPlayingEntry {
     players: Player[]
 };
 
+export interface OthersPlayingResponse {
+    active: OthersPlayingEntry[],
+    online: number
+}
+
 export interface Config {
     id: string;
     remote: string;

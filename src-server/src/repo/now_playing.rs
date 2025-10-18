@@ -32,7 +32,10 @@ pub async fn get_list() -> NowPlayingResponse {
         });
     }
 
-    all_games.into_values().collect()
+    NowPlayingResponse {
+        active: all_games.into_values().collect(),
+        online: store_lock.len()
+    }
 }
 
 pub async fn update(mut entry: NowPlayingEntry) {

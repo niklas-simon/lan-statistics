@@ -34,4 +34,8 @@ pub struct PartyPlayingEntry {
     pub players: Vec<Player>
 }
 
-pub type NowPlayingResponse = Vec<PartyPlayingEntry>;
+#[derive(Serialize, Deserialize, Clone)]
+pub struct NowPlayingResponse {
+    pub active: Vec<PartyPlayingEntry>,
+    pub online: usize
+}

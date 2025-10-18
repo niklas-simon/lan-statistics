@@ -1,8 +1,8 @@
 [package]
-name = "lan-tracker"
-version = "0.2.0"
-description = "LAN Datensammler"
-authors = ["you"]
+name = "lan-manager"
+version = "0.3.0"
+description = "LAN Manager"
+authors = ["Gewuerznud3l"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,6 +31,8 @@ chrono = "0.4.41"
 spacetimedb-sdk = "1.0"
 hex = "0.4"
 reqwest = { version = "0.12.23", features = ["json"] }
+notify-rust = "4.11.7"
+regex = "1.12.2"
 
 [dependencies.uuid]
 version = "1.16.0"
