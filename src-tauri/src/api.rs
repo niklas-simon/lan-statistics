@@ -23,7 +23,7 @@ pub async fn put_now_playing(games: HashSet<String>, last_update: DateTime<Local
     };
 
     let res = client.put(config.remote + "/api/v1/now-playing")
-        .query(&[("last_update", last_update.format("%Y-%m-%dT%H:%M:%S").to_string())])
+        .query(&[("last_update", last_update.to_rfc3339())])
         .bearer_auth(config.password.unwrap_or("".to_string()))
         .json(&body)
         .send()

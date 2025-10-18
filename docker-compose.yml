@@ -1,4 +1,13 @@
 services:
+  lan-manager:
+    build: ./
+    image: gewuerznud3l/lan-manager
+    env_file: .env
+    volumes:
+      - ./src-server/icons:/app/icons:ro
+      - ./src-server/games.json:/app/games.json:ro
+    ports:
+      - 80:80
   prometheus:
     image: prom/prometheus
     ports:
