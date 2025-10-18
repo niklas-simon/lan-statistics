@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "serde",
 ]
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "lan-manager"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "actix-files",
  "actix-web",
