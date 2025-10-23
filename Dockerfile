@@ -16,7 +16,8 @@ RUN cd src-server \
  && touch ../common/src/lib.rs \
  && cargo fetch
 
-COPY ./src-server ./common ./
+COPY ./common ./common
+COPY ./src-server ./src-server
 
 RUN case "$TARGETARCH" in \
       "amd64")  export RUST_TARGET=x86_64-unknown-linux-musl ;; \

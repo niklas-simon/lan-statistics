@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::{HashMap, HashSet}, sync::LazyLock};
 
 use actix_web::{error::ErrorInternalServerError, web, HttpResponse, Responder, Result, Scope};
 use chrono::{DateTime, Duration, Local};
@@ -73,6 +73,8 @@ pub async fn record_played_games(player: Player, games: Vec<Game>) {
             last_seen: Local::now() - Duration::seconds(5),
             map: HashMap::new()
         });
+
+    let mut expired: HashSet<Game> = by_player.map.keys().cloned().collect();
     
     for game in games {
         let by_game = by_player.map
@@ -84,6 +86,16 @@ pub async fn record_played_games(player: Player, games: Vec<Game>) {
         by_game.lan_game_seconds_total.inc_by(duration.as_seconds_f64());
         by_game.lan_game_active.set(1.0);
         by_player.last_seen = now;
+
+        expired.remove(&game);
+    }
+
+    for game in expired {
+        let Some(by_game) = by_player.map.get(&game) else {
+            continue;
+        };
+
+        by_game.lan_game_active.set(0.0);
     }
 }
 

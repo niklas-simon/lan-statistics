@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde",
 ]
@@ -2331,7 +2331,7 @@ dependencies = [
 
 [[package]]
 name = "lan-manager"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "clokwerk",
