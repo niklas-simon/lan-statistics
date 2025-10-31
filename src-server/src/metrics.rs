@@ -1,10 +1,12 @@
-use std::{collections::{HashMap, HashSet}, sync::LazyLock};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use actix_web::{error::ErrorInternalServerError, web, HttpResponse, Responder, Result, Scope};
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Duration, Local, TimeDelta};
 use common::{game::Game, response::now_playing::Player};
 use prometheus::{Counter, CounterVec, Gauge, GaugeVec, Opts, Registry, TextEncoder};
 use tokio::sync::Mutex;
+
+use crate::api::ActixData;
 
 struct MetricsFamily {
     lan_game_seconds_total: Counter,
@@ -12,10 +14,10 @@ struct MetricsFamily {
 }
 
 impl MetricsFamily {
-    fn with(player: &Player, game: &Game) -> MetricsFamily {
+    fn with(ctx: &MetricsContext, player: &Player, game: &Game) -> MetricsFamily {
         MetricsFamily {
-            lan_game_seconds_total: CTX.lan_game_seconds_total_vec.with_label_values(&[&player.id, &game.name, &player.name, &game.label, &game.icon]),
-            lan_game_active: CTX.lan_game_active_vec.with_label_values(&[&player.id, &game.name, &player.name, &game.label, &game.icon])
+            lan_game_seconds_total: ctx.lan_game_seconds_total_vec.with_label_values(&[&player.id, &game.name, &player.name, &game.label, &game.icon]),
+            lan_game_active: ctx.lan_game_active_vec.with_label_values(&[&player.id, &game.name, &player.name, &game.label, &game.icon])
         }
     }
 }
@@ -25,37 +27,40 @@ struct PlayerMetricsContext {
     map: HashMap<Game, MetricsFamily>
 }
 
-struct MetricsContext {
+#[derive(Clone)]
+pub struct MetricsContext {
     registry: Registry,
     lan_game_seconds_total_vec: CounterVec,
     lan_game_active_vec: GaugeVec,
-    map: Mutex<HashMap<Player, PlayerMetricsContext>>
+    map: Arc<Mutex<HashMap<Player, PlayerMetricsContext>>>
 }
 
-static CTX: LazyLock<MetricsContext> = LazyLock::new(|| {
-    let lan_game_seconds_total_opts = Opts::new("lan_game_seconds_total", "counts the times a game has been recorded for target player with an approximate resolution of 5s");
-    let lan_game_active_opts = Opts::new("lan_game_active", "gauge displaying current active game per player");
-    let lan_game_seconds_total_vec = CounterVec::new(lan_game_seconds_total_opts, &["player", "game", "player_name", "game_label", "game_icon"]).expect("failed to create CounterVec lan_game_seconds_total");
-    let lan_game_active_vec = GaugeVec::new(lan_game_active_opts, &["player", "game", "player_name", "game_label", "game_icon"]).expect("failed to create CounterVec lan_game_played_seconds");
-    let registry = Registry::new();
+impl MetricsContext {
+    pub fn new() -> MetricsContext {
+        let lan_game_seconds_total_opts = Opts::new("lan_game_seconds_total", "counts the times a game has been recorded for target player with an approximate resolution of 5s");
+        let lan_game_active_opts = Opts::new("lan_game_active", "gauge displaying current active game per player");
+        let lan_game_seconds_total_vec = CounterVec::new(lan_game_seconds_total_opts, &["player", "game", "player_name", "game_label", "game_icon"]).expect("failed to create CounterVec lan_game_seconds_total");
+        let lan_game_active_vec = GaugeVec::new(lan_game_active_opts, &["player", "game", "player_name", "game_label", "game_icon"]).expect("failed to create CounterVec lan_game_played_seconds");
+        let registry = Registry::new();
 
-    registry.register(Box::new(lan_game_seconds_total_vec.clone()))
-        .expect("failed to register lan_game_seconds_total");
-    registry.register(Box::new(lan_game_active_vec.clone()))
-        .expect("failed to register lan_game_active");
+        registry.register(Box::new(lan_game_seconds_total_vec.clone()))
+            .expect("failed to register lan_game_seconds_total");
+        registry.register(Box::new(lan_game_active_vec.clone()))
+            .expect("failed to register lan_game_active");
 
-    MetricsContext { 
-        registry, 
-        lan_game_seconds_total_vec, 
-        lan_game_active_vec, 
-        map: HashMap::new().into()
+        MetricsContext { 
+            registry, 
+            lan_game_seconds_total_vec, 
+            lan_game_active_vec, 
+            map: Arc::new(Mutex::new(HashMap::new()))
+        }
     }
-});
+}
 
-pub async fn scrape() -> Result<impl Responder> {
+pub async fn scrape(data: ActixData) -> Result<impl Responder> {
     let mut buffer = String::new();
     let encoder = TextEncoder::new();
-    let metric_families = CTX.registry.gather();
+    let metric_families = data.metrics.registry.gather();
 
     encoder.encode_utf8(&metric_families, &mut buffer)
         .map_err(|e| ErrorInternalServerError(format!("failed to encode metrics: {e}")))?;
@@ -65,8 +70,8 @@ pub async fn scrape() -> Result<impl Responder> {
         .body(buffer))
 }
 
-pub async fn record_played_games(player: Player, games: Vec<Game>) {
-    let mut counter_lock = CTX.map.lock().await;
+pub async fn record_played_games(metrics: &MetricsContext, player: Player, games: Vec<Game>) {
+    let mut counter_lock = metrics.map.lock().await;
     let by_player = counter_lock
         .entry(player.clone())
         .or_insert(PlayerMetricsContext {
@@ -79,11 +84,14 @@ pub async fn record_played_games(player: Player, games: Vec<Game>) {
     for game in games {
         let by_game = by_player.map
             .entry(game.clone())
-            .or_insert(MetricsFamily::with(&player, &game));
+            .or_insert(MetricsFamily::with(metrics, &player, &game));
         let now = Local::now();
         let duration = now - by_player.last_seen;
 
-        by_game.lan_game_seconds_total.inc_by(duration.as_seconds_f64());
+        if duration < TimeDelta::minutes(1) {
+            by_game.lan_game_seconds_total.inc_by(duration.as_seconds_f64());
+        }
+
         by_game.lan_game_active.set(1.0);
         by_player.last_seen = now;
 
@@ -99,8 +107,8 @@ pub async fn record_played_games(player: Player, games: Vec<Game>) {
     }
 }
 
-pub async fn record_expired_player(player: &String) {
-    let counter_lock = CTX.map.lock().await;
+pub async fn record_expired_player(metrics: &MetricsContext, player: &String) {
+    let counter_lock = metrics.map.lock().await;
     let Some((_, by_player)) = counter_lock.iter().find(|(p, _)| &p.id == player) else {
         return;
     };

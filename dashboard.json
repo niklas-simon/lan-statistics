@@ -2,7 +2,7 @@
   "__inputs": [
     {
       "name": "DS_PROMETHEUS",
-      "label": "prometheus",
+      "label": "Prometheus",
       "description": "",
       "type": "datasource",
       "pluginId": "prometheus",
@@ -15,7 +15,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "12.2.1"
+      "version": "12.2.0"
     },
     {
       "type": "datasource",
@@ -55,7 +55,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
   "links": [],
   "panels": [
     {
@@ -110,7 +109,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
@@ -205,8 +204,8 @@
                     "options": {
                       "pattern": "(.*)",
                       "result": {
-                        "index": 1,
-                        "text": "http://localhost/api/v1/games/$1/icon"
+                        "index": 0,
+                        "text": "https://lan.pein.dev/api/v1/games/$1/icon"
                       }
                     },
                     "type": "regex"
@@ -238,9 +237,13 @@
           }
         ]
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
@@ -252,11 +255,7 @@
           "legendFormat": "{{game_label}}",
           "range": false,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Playtime over Range",
@@ -336,9 +335,13 @@
         "cellHeight": "sm",
         "showHeader": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": false,
@@ -350,11 +353,7 @@
           "legendFormat": "__auto",
           "range": false,
           "refId": "A",
-          "useBackend": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
+          "useBackend": false
         }
       ],
       "title": "Players for each game",
@@ -395,19 +394,21 @@
       "type": "table"
     }
   ],
+  "refresh": "1m",
   "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-3d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "LAN Manager",
   "uid": "bf0zvrhya7sw0b",
-  "version": 4,
-  "weekStart": ""
+  "version": 3,
+  "weekStart": "",
+  "id": null
 }

@@ -1,16 +1,14 @@
-use std::{collections::HashSet, env, fs, sync::LazyLock};
+use std::{collections::HashSet, sync::LazyLock};
 
 use chrono::{DateTime, Local, TimeDelta};
 use common::{game::Game, response::now_playing::NowPlayingResponse};
-use log::warn;
+use log::{info, warn};
 use notify_rust::{Notification, Timeout};
-use regex::Regex;
-use reqwest::{header, Client};
 use serde::Serialize;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tokio::sync::Mutex;
 
-use crate::{api::{get_games, put_now_playing, send_event}, config::get_or_create_config};
+use crate::api::{get_games, get_icon, put_now_playing, send_event};
 const GRACE_PERIOD: u16 = 4;
 
 #[derive(Serialize, Clone)]
@@ -91,24 +89,6 @@ fn get_processes() -> Vec<Process> {
         .collect()
 }
 
-async fn get_icon(game: &Game) -> Option<String> {
-    let config = get_or_create_config(false).ok()?;
-    let tmp_dir = env::temp_dir();
-    let icon_url = format!("{}/api/v1/games/{}/icon", config.remote, game.name);
-    let res = Client::default().get(icon_url).send().await.ok()?;
-    let filename = res.headers().get(header::CONTENT_DISPOSITION)
-        .and_then(|d| d.to_str().ok())
-        .and_then(|d| Regex::new("filename=\"(?<name>.*)\"").unwrap().captures(d))
-        .and_then(|c| c.name("name"))
-        .map(|n| n.as_str().to_owned())?;
-    let bytes = res.bytes().await.ok()?;
-    let path = tmp_dir.join(filename);
-
-    fs::write(&path, bytes).ok()?;
-
-    path.to_str().map(str::to_owned)
-}
-
 pub async fn poll() -> Result<(), String> {
     let processes = get_processes();
 
@@ -118,15 +98,29 @@ pub async fn poll() -> Result<(), String> {
         .map(|p| p.name)
         .filter(|p| games.games.iter().any(|g| &g.name == p))
         .collect();
-    let last_put = CTX.lock().await.last_put;
-    let res = put_now_playing(open_games.clone(), last_put).await?;
 
-    if let Some(others_playing) = res.as_ref() {
-        send_event("others_playing", others_playing).await?;
+    info!("transmitting activity: {}", if open_games.is_empty() { "(nothing)".to_string() } else { open_games.iter().cloned().collect::<Vec<String>>().join(", ") });
+
+    let last_put = CTX.lock().await.last_put;
+    let res = put_now_playing(open_games.clone(), last_put).await;
+
+    match res.as_ref() {
+        Ok(Some(others_playing)) => {
+            info!("received activity from {} player(s)", others_playing.online);
+            send_event("others_playing", others_playing).await?;
+        },
+        Ok(None) => {
+            info!("received not modified");
+        },
+        Err(e) => {
+            warn!("error transmitting activity: {e}");
+
+            return Err(e.clone());
+        }
     }
 
     let mut ctx_lock = CTX.lock().await;
-    let mut others_playing = match (res, ctx_lock.last_response.clone()) {
+    let mut others_playing = match (res.unwrap(), ctx_lock.last_response.clone()) {
         (Some(others_playing), _) => {
             ctx_lock.last_put = Local::now();
             ctx_lock.last_response = Some(others_playing.clone());

@@ -1,21 +1,17 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::HashMap};
 use chrono::{DateTime, Local, TimeDelta};
 use common::{response::now_playing::{NowPlayingEntry, NowPlayingResponse, PartyPlayingEntry}};
-use tokio::sync::Mutex;
 
-use crate::{metrics, repo::games::get_game};
+use crate::{api::{ActixData, SharedData}, metrics, repo::games::get_game};
 
-struct NowPlayingInfo {
+pub struct NowPlayingInfo {
     timestamp: DateTime<Local>,
     entry: NowPlayingEntry
 }
 
-static STORE: LazyLock<Mutex<HashMap<String, NowPlayingInfo>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
-pub static LAST_UPDATE: LazyLock<Mutex<DateTime<Local>>> = LazyLock::new(|| Mutex::new(Local::now()));
-
-pub async fn get_list() -> NowPlayingResponse {
+pub async fn get_list(data: ActixData) -> NowPlayingResponse {
     let mut all_games: HashMap<String, PartyPlayingEntry> = HashMap::new();
-    let store_lock = STORE.lock().await;
+    let store_lock = data.store.lock().await;
 
     for info in store_lock.values() {
         info.entry.games.iter().for_each(|name| {
@@ -38,8 +34,8 @@ pub async fn get_list() -> NowPlayingResponse {
     }
 }
 
-pub async fn update(mut entry: NowPlayingEntry) {
-    let mut store_lock = STORE.lock().await;
+pub async fn update(data: &ActixData, mut entry: NowPlayingEntry) {
+    let mut store_lock = data.store.lock().await;
 
     entry.games.sort();
 
@@ -65,16 +61,16 @@ pub async fn update(mut entry: NowPlayingEntry) {
     drop(store_lock);
 
     if is_update {
-        *LAST_UPDATE.lock().await = Local::now();
+        *data.last_update.lock().await = Local::now();
     }
 
-    metrics::record_played_games(entry.player, entry.games.iter()
+    metrics::record_played_games(&data.metrics, entry.player, entry.games.iter()
         .filter_map(|g| get_game(g).cloned())
         .collect()).await;
 }
 
-pub async fn clean() {
-    let mut store_lock = STORE.lock().await;
+pub async fn clean(data: SharedData) {
+    let mut store_lock = data.store.lock().await;
     let mut is_update = false;
     let mut expired: Vec<String> = vec![];
 
@@ -88,12 +84,12 @@ pub async fn clean() {
 
     for player in expired {
         store_lock.remove(&player);
-        metrics::record_expired_player(&player).await;
+        metrics::record_expired_player(&data.metrics, &player).await;
     };
 
     drop(store_lock);
 
     if is_update {
-        *LAST_UPDATE.lock().await = Local::now();
+        *data.last_update.lock().await = Local::now();
     }
 }

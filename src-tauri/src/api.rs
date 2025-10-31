@@ -1,8 +1,9 @@
-use std::{collections::HashSet, sync::LazyLock};
+use std::{collections::HashSet, env, fs, sync::LazyLock, time::Duration};
 
-use reqwest::{StatusCode, Client};
+use regex::Regex;
+use reqwest::{Client, ClientBuilder, StatusCode, header};
 use chrono::{DateTime, Local};
-use common::{response::{games::GamesResponse, now_playing::{NowPlayingEntry, NowPlayingResponse, Player}}};
+use common::{game::Game, response::{games::GamesResponse, now_playing::{NowPlayingEntry, NowPlayingResponse, Player}}};
 use serde::Serialize;
 use tauri::Emitter;
 use tokio::sync::Mutex;
@@ -10,10 +11,14 @@ use tokio::sync::Mutex;
 use crate::{app::APP_HANDLE, config::get_or_create_config};
 
 static GAMES: LazyLock<Mutex<Option<GamesResponse>>> = LazyLock::new(|| Mutex::new(None));
+static CLIENT: LazyLock<Client> = LazyLock::new(|| ClientBuilder::default()
+    .timeout(Duration::from_secs(5))
+    .build()
+    .expect("failed to build client")
+);
 
 pub async fn put_now_playing(games: HashSet<String>, last_update: DateTime<Local>) -> Result<Option<NowPlayingResponse>, String> {
     let config = get_or_create_config(false)?;
-    let client = Client::default();
     let body = NowPlayingEntry {
         games: games.into_iter().collect(),
         player: Player {
@@ -22,7 +27,7 @@ pub async fn put_now_playing(games: HashSet<String>, last_update: DateTime<Local
         }
     };
 
-    let res = client.put(config.remote + "/api/v1/now-playing")
+    let res = CLIENT.put(config.remote + "/api/v1/now-playing")
         .query(&[("last_update", last_update.to_rfc3339())])
         .bearer_auth(config.password.unwrap_or("".to_string()))
         .json(&body)
@@ -55,8 +60,7 @@ pub async fn get_games() -> Result<GamesResponse, String> {
     }
 
     let config = get_or_create_config(false)?;
-    let client = Client::default();
-    let games = client.get(config.remote + "/api/v1/games")
+    let games = CLIENT.get(config.remote + "/api/v1/games")
         .send().await
         .map_err(|e| format!("Keine Verbindung zum Server\n{e}"))?
         .json::<GamesResponse>().await
@@ -65,6 +69,24 @@ pub async fn get_games() -> Result<GamesResponse, String> {
     *GAMES.lock().await = Some(games.clone());
 
     Ok(games)
+}
+
+pub async fn get_icon(game: &Game) -> Option<String> {
+    let config = get_or_create_config(false).ok()?;
+    let tmp_dir = env::temp_dir();
+    let icon_url = format!("{}/api/v1/games/{}/icon", config.remote, game.name);
+    let res = CLIENT.get(icon_url).send().await.ok()?;
+    let filename = res.headers().get(header::CONTENT_DISPOSITION)
+        .and_then(|d| d.to_str().ok())
+        .and_then(|d| Regex::new("filename=\"(?<name>.*)\"").unwrap().captures(d))
+        .and_then(|c| c.name("name"))
+        .map(|n| n.as_str().to_owned())?;
+    let bytes = res.bytes().await.ok()?;
+    let path = tmp_dir.join(filename);
+
+    fs::write(&path, bytes).ok()?;
+
+    path.to_str().map(str::to_owned)
 }
 
 pub async fn send_event<T: Serialize>(event: &str, obj: &T) -> Result<(), String> {

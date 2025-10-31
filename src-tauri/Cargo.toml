@@ -1,6 +1,6 @@
 [package]
 name = "lan-manager"
-version = "0.3.1"
+version = "0.3.2"
 description = "LAN Manager"
 authors = ["Gewuerznud3l"]
 edition = "2021"
